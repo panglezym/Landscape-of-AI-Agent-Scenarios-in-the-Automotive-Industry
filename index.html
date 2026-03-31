@@ -1,0 +1,1750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>汽车 Agent 场景全景</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --surface: #111118; --surface2: #18181f;
+    --border: rgba(255,255,255,0.07); --border-hover: rgba(255,255,255,0.18);
+    --text: #e8e8f0; --text-muted: #6b6b80; --text-dim: #3a3a50;
+    --purple: #a78bfa; --purple-dim: rgba(167,139,250,0.10);
+    --teal: #34d399;   --teal-dim: rgba(52,211,153,0.10);
+    --coral: #fb7185;  --coral-dim: rgba(251,113,133,0.10);
+    --amber: #fbbf24;  --amber-dim: rgba(251,191,36,0.10);
+    --font: 'DM Sans', sans-serif; --mono: 'DM Mono', monospace;
+    --radius: 12px; --tr: 0.22s cubic-bezier(0.4,0,0.2,1);
+  }
+  html { font-size: 15px; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+  body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image: linear-gradient(rgba(255,255,255,0.022) 1px,transparent 1px), linear-gradient(90deg,rgba(255,255,255,0.022) 1px,transparent 1px);
+    background-size:48px 48px; }
+  .view { display:none; position:relative; z-index:1; }
+  .view.active { display:block; }
+
+  .home-header { padding:60px 48px 36px; max-width:1100px; margin:0 auto; }
+  .eyebrow { font-family:var(--mono); font-size:11px; letter-spacing:0.14em; color:var(--text-muted); text-transform:uppercase; margin-bottom:16px; }
+  .home-header h1 { font-size:clamp(26px,3.8vw,40px); font-weight:300; line-height:1.15; letter-spacing:-0.02em; margin-bottom:12px; }
+  .home-header h1 strong { font-weight:500; }
+  .home-header p { color:var(--text-muted); font-size:13.5px; line-height:1.75; max-width:500px; }
+
+  .cat-section { padding:0 48px 44px; max-width:1100px; margin:0 auto; }
+  .cat-label { font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; padding-bottom:14px; border-bottom:1px solid var(--border); margin-bottom:18px; display:flex; align-items:center; gap:10px; }
+  .cat-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .cards-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:11px; }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px 20px 18px; cursor:pointer; transition:border-color var(--tr),transform var(--tr); position:relative; overflow:hidden; animation:fadeUp 0.4s ease both; }
+  .card::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity var(--tr); border-radius:var(--radius); }
+  .card:hover { transform:translateY(-2px); border-color:var(--border-hover); }
+  .card:hover::before { opacity:1; }
+  .card[data-cat="cabin"]::before { background:var(--purple-dim); }
+  .card[data-cat="sales"]::before { background:var(--teal-dim); }
+  .card[data-cat="ops"]::before   { background:var(--coral-dim); }
+  .card[data-cat="ind"]::before   { background:var(--amber-dim); }
+  .card-tag { font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; padding:3px 8px; border-radius:4px; display:inline-block; margin-bottom:12px; position:relative; z-index:1; }
+  .card[data-cat="cabin"] .card-tag { color:var(--purple); background:var(--purple-dim); }
+  .card[data-cat="sales"] .card-tag { color:var(--teal);   background:var(--teal-dim); }
+  .card[data-cat="ops"]   .card-tag { color:var(--coral);  background:var(--coral-dim); }
+  .card[data-cat="ind"]   .card-tag { color:var(--amber);  background:var(--amber-dim); }
+  .card h3 { font-size:14.5px; font-weight:500; margin-bottom:5px; position:relative; z-index:1; }
+  .card p  { font-size:12px; color:var(--text-muted); line-height:1.6; position:relative; z-index:1; }
+  .card-arrow { position:absolute; bottom:16px; right:16px; font-size:13px; color:var(--text-dim); transition:color var(--tr),transform var(--tr); z-index:1; }
+  .card:hover .card-arrow { color:var(--text-muted); transform:translate(2px,-2px); }
+
+  .detail-nav { max-width:1100px; margin:0 auto; padding:26px 48px 0; }
+  .back-btn { font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); background:none; border:1px solid var(--border); border-radius:6px; padding:6px 14px; cursor:pointer; transition:border-color var(--tr),color var(--tr); }
+  .back-btn:hover { border-color:var(--border-hover); color:var(--text); }
+
+  .detail-body { max-width:1100px; margin:0 auto; padding:36px 48px 80px; }
+  .detail-eyebrow { font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; }
+  .detail-title { font-size:clamp(22px,3.2vw,34px); font-weight:300; letter-spacing:-0.02em; line-height:1.2; margin-bottom:8px; }
+  .detail-title strong { font-weight:500; }
+  .detail-subtitle { font-size:13.5px; color:var(--text-muted); line-height:1.8; margin-bottom:36px; max-width:780px; }
+
+  .section { margin-bottom:14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+  .section-header { display:flex; align-items:center; gap:12px; padding:18px 22px 0; margin-bottom:14px; }
+  .section-num { font-family:var(--mono); font-size:10px; color:var(--text-dim); min-width:22px; }
+  .section h2 { font-size:13.5px; font-weight:500; }
+  .section-inner { padding:0 22px 20px 56px; }
+
+  .prose { font-size:13px; color:var(--text-muted); line-height:1.85; }
+  .prose p+p { margin-top:10px; }
+  .prose b { color:var(--text); font-weight:500; }
+
+  .steps { display:flex; flex-direction:column; gap:9px; }
+  .step { display:flex; gap:12px; align-items:flex-start; }
+  .step-num { font-family:var(--mono); font-size:10px; color:var(--text-dim); min-width:20px; padding-top:2px; flex-shrink:0; }
+  .step-body { font-size:13px; color:var(--text-muted); line-height:1.75; }
+  .step-body b { color:var(--text); font-weight:500; }
+
+  .arch-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .arch-table th { text-align:left; font-weight:500; color:var(--text-muted); font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; padding:0 12px 10px 0; border-bottom:1px solid var(--border); }
+  .arch-table td { padding:10px 12px 10px 0; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text-muted); line-height:1.65; font-size:12.5px; }
+  .arch-table td:first-child { color:var(--text); font-weight:500; white-space:nowrap; padding-right:20px; min-width:90px; }
+  .arch-table tr:last-child td { border-bottom:none; }
+
+  .phases { display:flex; flex-direction:column; }
+  .phase { display:flex; gap:0; align-items:stretch; }
+  .phase-line { display:flex; flex-direction:column; align-items:center; width:28px; flex-shrink:0; }
+  .phase-dot { width:8px; height:8px; border-radius:50%; background:var(--text-dim); margin-top:4px; flex-shrink:0; }
+  .phase-connector { width:1px; background:var(--border); flex:1; margin:4px 0; }
+  .phase:last-child .phase-connector { display:none; }
+  .phase-content { padding:0 0 20px 8px; flex:1; }
+  .phase-label { font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:4px; }
+  .phase-title { font-size:13px; font-weight:500; color:var(--text); margin-bottom:4px; }
+  .phase-desc { font-size:12.5px; color:var(--text-muted); line-height:1.7; }
+
+  .metrics-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:8px; }
+  .metric-card { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+  .metric-name { font-size:11.5px; color:var(--text-muted); margin-bottom:4px; }
+  .metric-target { font-family:var(--mono); font-size:12px; color:var(--text); }
+
+  .constraint-list { display:flex; flex-direction:column; gap:7px; }
+  .constraint { display:flex; gap:10px; align-items:flex-start; font-size:12.5px; }
+  .cbadge { font-family:var(--mono); font-size:9px; letter-spacing:0.06em; padding:2px 7px; border-radius:3px; flex-shrink:0; margin-top:2px; text-transform:uppercase; }
+  .c-warn .cbadge { color:var(--coral); background:rgba(251,113,133,0.12); }
+  .c-info .cbadge { color:var(--amber); background:rgba(251,191,36,0.12); }
+  .c-ok   .cbadge { color:var(--teal);  background:rgba(52,211,153,0.12); }
+  .ctext { color:var(--text-muted); line-height:1.65; }
+
+  .related-chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .nav-chip { font-size:12px; padding:5px 14px; border-radius:6px; border:1px solid var(--border); color:var(--text-muted); cursor:pointer; background:none; transition:border-color var(--tr),color var(--tr); }
+  .nav-chip:hover { border-color:var(--border-hover); color:var(--text); }
+  hr { border:none; border-top:1px solid var(--border); margin:20px 0 14px; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+  .detail-body>*{animation:fadeUp 0.32s ease both;}
+  .detail-body>*:nth-child(1){animation-delay:.04s} .detail-body>*:nth-child(2){animation-delay:.08s}
+  .detail-body>*:nth-child(3){animation-delay:.12s} .detail-body>*:nth-child(4){animation-delay:.16s}
+  .detail-body>*:nth-child(5){animation-delay:.20s} .detail-body>*:nth-child(6){animation-delay:.24s}
+  .detail-body>*:nth-child(7){animation-delay:.28s} .detail-body>*:nth-child(8){animation-delay:.32s}
+  .detail-body>*:nth-child(9){animation-delay:.36s} .detail-body>*:nth-child(10){animation-delay:.40s}
+
+  /* Search bar */
+  .search-bar-wrap { padding:0 48px 28px; max-width:1100px; margin:0 auto; }
+  .search-bar { display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 16px; transition:border-color var(--tr); }
+  .search-bar:focus-within { border-color:var(--border-hover); }
+  .search-bar input { background:none; border:none; outline:none; color:var(--text); font-family:var(--font); font-size:13px; flex:1; }
+  .search-bar input::placeholder { color:var(--text-dim); }
+  .search-icon { color:var(--text-dim); font-size:14px; flex-shrink:0; }
+  .search-count { font-family:var(--mono); font-size:10px; color:var(--text-dim); flex-shrink:0; }
+  .card.hidden { display:none; }
+
+  /* Relationship map */
+  .map-section { padding:0 48px 44px; max-width:1100px; margin:0 auto; }
+  .map-toggle { font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); background:none; border:1px solid var(--border); border-radius:6px; padding:5px 12px; cursor:pointer; transition:border-color var(--tr),color var(--tr); margin-bottom:14px; }
+  .map-toggle:hover { border-color:var(--border-hover); color:var(--text); }
+  .rel-map { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; display:none; overflow:auto; }
+  .rel-map.open { display:block; }
+  .rel-map svg { width:100%; min-width:600px; }
+
+  /* ROI section type */
+  .roi-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; }
+  .roi-card { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+  .roi-label { font-size:11px; color:var(--text-dim); margin-bottom:3px; font-family:var(--mono); letter-spacing:0.06em; text-transform:uppercase; }
+  .roi-value { font-size:13px; font-weight:500; color:var(--text); margin-bottom:2px; }
+  .roi-note { font-size:11px; color:var(--text-muted); line-height:1.5; }
+
+  /* Benchmark section type */
+  .bench-list { display:flex; flex-direction:column; gap:8px; }
+  .bench-item { display:flex; gap:10px; align-items:flex-start; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 14px; }
+  .bench-who { font-size:12px; font-weight:500; color:var(--text); min-width:80px; flex-shrink:0; }
+  .bench-what { font-size:12px; color:var(--text-muted); line-height:1.6; }
+
+  /* Agent Synergy Map */
+  .synergy-section { padding:0 48px 44px; max-width:1100px; margin:0 auto; }
+  .synergy-toggle { font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); background:none; border:1px solid var(--border); border-radius:6px; padding:5px 12px; cursor:pointer; transition:border-color var(--tr),color var(--tr); margin-bottom:14px; }
+  .synergy-toggle:hover { border-color:var(--border-hover); color:var(--text); }
+  .synergy-body { display:none; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px 28px; }
+  .synergy-body.open { display:block; }
+  .synergy-chains { display:flex; flex-direction:column; gap:18px; }
+  .chain { display:flex; flex-direction:column; gap:6px; }
+  .chain-title { font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim); }
+  .chain-nodes { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+  .chain-node { font-size:12px; font-weight:500; padding:4px 12px; border-radius:5px; border:1px solid; }
+  .chain-arrow { font-size:13px; color:var(--text-dim); }
+  .chain-desc { font-size:12px; color:var(--text-muted); line-height:1.7; padding-left:2px; }
+  @media(max-width:600px){
+    .home-header,.cat-section,.search-bar-wrap,.map-section,.detail-nav,.detail-body{padding-left:20px;padding-right:20px;}
+    .cards-grid{grid-template-columns:1fr;} .section-inner{padding-left:22px;}
+    .metrics-grid{grid-template-columns:1fr 1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="view active" id="view-home">
+  <div class="home-header">
+    <div class="eyebrow">Product Design · 2026 &nbsp;·&nbsp; 赵永明 · AI产品经理 &nbsp;·&nbsp; 28 个核心场景</div>
+    <h1>汽车行业<br><strong>Agent 场景全景</strong></h1>
+    <p>点击任意场景卡片，查看产品设计方案、核心功能拆解、技术架构与落地路径。展开场景关系图可查看各 Agent 之间的数据流与联动关系。</p>
+  </div>
+  <div class="search-bar-wrap">
+    <div class="search-bar">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="scene-search" placeholder="搜索场景（如：调度、定损、续航…）" autocomplete="off">
+      <span class="search-count" id="search-count"></span>
+    </div>
+  </div>
+  <div class="map-section">
+    <button class="map-toggle" id="map-toggle">⊞ 展开场景关系图</button>
+    <div class="rel-map" id="rel-map">
+      <canvas id="map-canvas" style="width:100%;display:block;border-radius:8px;cursor:pointer"></canvas>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);text-align:center;padding-top:10px;letter-spacing:0.08em">点击节点跳转场景 &nbsp;·&nbsp; 实线为主要联动 &nbsp;·&nbsp; 虚线为跨类数据流</div>
+    </div>
+  </div>
+  <div class="synergy-section">
+    <button class="synergy-toggle" id="synergy-toggle">⬡ 展开 Agent 协同数据链</button>
+    <div class="synergy-body" id="synergy-body">
+      <div style="font-size:13px;color:var(--text-muted);line-height:1.8;margin-bottom:20px;">22个Agent场景并非孤立的工具，而是通过<b style="color:var(--text)">数据流转与决策联动</b>形成有机整体。以下五条主要协同链展示了数据如何在场景间流动，产生"1+1>2"的系统性价值。</div>
+      <div class="synergy-chains">
+
+        <div class="chain">
+          <div class="chain-title">⬡ 链路一 · 用户全旅程数据链</div>
+          <div class="chain-nodes">
+            <span class="chain-node" style="color:var(--teal);border-color:rgba(52,211,153,0.4)">舆情口碑</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--teal);border-color:rgba(52,211,153,0.4)">展厅线索培育</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--teal);border-color:rgba(52,211,153,0.4)">试驾体验</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--teal);border-color:rgba(52,211,153,0.4)">智能销售</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--teal);border-color:rgba(52,211,153,0.4)">用户生命周期运营</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--teal);border-color:rgba(52,211,153,0.4)">二手车评估</span>
+          </div>
+          <div class="chain-desc">用户从"看到品牌内容"到"换购旧车"的完整旅程。舆情口碑数据指导线索培育的内容方向；试驾行为数据反哺销售话术；用户生命周期运营识别换购意向，无缝衔接二手车置换——形成用户价值的完整闭环。</div>
+        </div>
+
+        <div class="chain">
+          <div class="chain-title">⬡ 链路二 · 车辆安全与风险管控链</div>
+          <div class="chain-nodes">
+            <span class="chain-node" style="color:var(--purple);border-color:rgba(167,139,250,0.4)">驾驶安全</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--purple);border-color:rgba(167,139,250,0.4)">健康出行</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">保险理赔</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">召回管理</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">合规数据治理</span>
+          </div>
+          <div class="chain-desc">驾驶安全和健康监测数据构建用户驾驶行为画像，流入保险理赔支撑UBI动态定价；召回管理从保险理赔的批次缺陷信号中提前发现异常；所有决策日志汇入合规治理平台完成审计闭环。</div>
+        </div>
+
+        <div class="chain">
+          <div class="chain-title">⬡ 链路三 · 研发制造智能链</div>
+          <div class="chain-nodes">
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">ADAS数据闭环</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">研发制造</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">召回管理</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--teal);border-color:rgba(52,211,153,0.4)">售后服务</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">ADAS数据闭环</span>
+          </div>
+          <div class="chain-desc">路测数据触发ADAS模型迭代；研发制造的质检缺陷数据提前识别召回信号；召回根因分析反馈研发设计优化；售后工单的维修模式流入ADAS的训练数据选择策略——构成研发→制造→使用→改进的完整飞轮。</div>
+        </div>
+
+        <div class="chain">
+          <div class="chain-title">⬡ 链路四 · 能源与补能生态链</div>
+          <div class="chain-nodes">
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">能源管理</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">充电补能</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--purple);border-color:rgba(167,139,250,0.4)">智能导航</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--purple);border-color:rgba(167,139,250,0.4)">座舱助手</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">出行服务</span>
+          </div>
+          <div class="chain-desc">能源管理的SOH数据精确修正充电补能的续航预测；充电桩实时状态流入导航规划最优路线；座舱助手将补能建议自然地融入行程对话；出行服务平台依托补能网络实现电动网约车的高效调度。</div>
+        </div>
+
+        <div class="chain">
+          <div class="chain-title">⬡ 链路五 · 渠道运营与定价优化链</div>
+          <div class="chain-nodes">
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">车队管理</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">智能定价促销</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">经销商运营</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--teal);border-color:rgba(52,211,153,0.4)">展厅线索培育</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--teal);border-color:rgba(52,211,153,0.4)">用户生命周期运营</span>
+          </div>
+          <div class="chain-desc">车队管理的运营数据揭示区域真实需求，支撑定价Agent的弹性模型；定价建议下发给经销商运营，指导库存采购节奏；经销商的线索数据流入培育系统进行跟进；最终转化的用户进入生命周期运营，实现从"卖车"到"经营用户"的战略升级。</div>
+        </div>
+
+        <div class="chain">
+          <div class="chain-title">⬡ 链路六 · 企业内部智能运营链</div>
+          <div class="chain-nodes">
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">供应链协同</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">财务智能</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">智能定价促销</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">HR人才管理</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">研发制造</span>
+          </div>
+          <div class="chain-desc">供应链协同的采购价格数据实时流入财务智能，支撑精准成本预测；财务智能的利润分析反哺定价决策，形成"供应链成本→定价→利润"的完整闭环；HR人才管理确保研发制造核心团队的稳定，人才密度直接决定ADAS和智能化能力的迭代速度。</div>
+        </div>
+
+        <div class="chain">
+          <div class="chain-title">⬡ 链路七 · 出海全链路合规链</div>
+          <div class="chain-nodes">
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">供应链协同</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">能源管理</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">出海合规</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--coral);border-color:rgba(251,113,133,0.4)">合规数据治理</span><span class="chain-arrow">→</span>
+            <span class="chain-node" style="color:var(--amber);border-color:rgba(251,191,36,0.4)">ADAS数据闭环</span>
+          </div>
+          <div class="chain-desc">供应链碳足迹数据+能源管理的电池全生命周期数据，共同支撑出海合规的CBAM申报和欧盟《电池法规》"电池护照"要求；出海合规的数据本地化规则，约束ADAS数据闭环在境外的数据采集和传输策略；合规数据治理作为底层基础设施，确保所有场景的数据处理均符合多市场监管要求。</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="cat-section">
+    <div class="cat-label"><span class="cat-dot" style="background:var(--purple)"></span><span style="color:var(--purple)">车内体验</span><span style="color:var(--text-dim)">· In-Cabin</span></div>
+    <div class="cards-grid">
+      <div class="card" data-cat="cabin" data-scene="cockpit" style="animation-delay:.05s"><div class="card-tag">座舱</div><h3>座舱助手</h3><p>多模态感知+情绪识别，从语音工具升级为行车伴侣</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="cabin" data-scene="navigation" style="animation-delay:.10s"><div class="card-tag">导航</div><h3>智能导航</h3><p>融合路况、能耗、偏好，动态规划最优行程</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="cabin" data-scene="safety" style="animation-delay:.15s"><div class="card-tag">安全</div><h3>驾驶安全</h3><p>疲劳检测、危险预警、紧急事件主动介入</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="cabin" data-scene="health" style="animation-delay:.20s"><div class="card-tag">健康</div><h3>健康出行</h3><p>车内空气质量、驾驶员健康监测、长途健康管理</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="cabin" data-scene="testdrive" style="animation-delay:.25s"><div class="card-tag">试驾</div><h3>试驾体验</h3><p>个性化试驾路线、实时能力展示、试驾报告生成</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="cabin" data-scene="parking" style="animation-delay:.30s"><div class="card-tag">停车</div><h3>智能停车</h3><p>车位预订、无感支付、寻车导航、停车行为分析</p><span class="card-arrow">↗</span></div>
+    </div>
+  </div>
+  <div class="cat-section">
+    <div class="cat-label"><span class="cat-dot" style="background:var(--teal)"></span><span style="color:var(--teal)">销售服务</span><span style="color:var(--text-dim)">· Sales & Service</span></div>
+    <div class="cards-grid">
+      <div class="card" data-cat="sales" data-scene="sales" style="animation-delay:.05s"><div class="card-tag">销售</div><h3>智能销售</h3><p>多轮对话选配、实时报价、线索跟进自动化</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="sales" data-scene="aftersales" style="animation-delay:.10s"><div class="card-tag">售后</div><h3>售后服务</h3><p>故障诊断、维保预约、工单全流程自动化</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="sales" data-scene="usedcar" style="animation-delay:.15s"><div class="card-tag">二手车</div><h3>二手车评估</h3><p>AI评估车况、自动估价、置换流程全数字化</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="sales" data-scene="leadnurture" style="animation-delay:.20s"><div class="card-tag">线索</div><h3>展厅线索培育</h3><p>从意向留资到进店，全周期智能跟进与内容推送</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="sales" data-scene="lifecycle" style="animation-delay:.25s"><div class="card-tag">生命周期</div><h3>用户生命周期运营</h3><p>蜜月期引导、换购预警、老带新，全周期关系经营</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="sales" data-scene="autofinance" style="animation-delay:.30s"><div class="card-tag">金融</div><h3>汽车金融</h3><p>个性化贷款方案、信用评估、逾期预测与催收策略</p><span class="card-arrow">↗</span></div>
+    </div>
+  </div>
+  <div class="cat-section">
+    <div class="cat-label"><span class="cat-dot" style="background:var(--coral)"></span><span style="color:var(--coral)">运营管理</span><span style="color:var(--text-dim)">· Operations</span></div>
+    <div class="cards-grid">
+      <div class="card" data-cat="ops" data-scene="fleet" style="animation-delay:.05s"><div class="card-tag">车队</div><h3>车队管理</h3><p>调度优化、油耗分析、合规监控多Agent协同</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ops" data-scene="insurance" style="animation-delay:.10s"><div class="card-tag">保险</div><h3>保险理赔</h3><p>AI定损、自动核保、理赔全流程数字化</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ops" data-scene="recall" style="animation-delay:.15s"><div class="card-tag">召回</div><h3>召回管理</h3><p>缺陷信号识别、车主主动触达、进度跟踪闭环</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ops" data-scene="compliance" style="animation-delay:.20s"><div class="card-tag">合规</div><h3>合规数据治理</h3><p>数据分级、权限管控、监管报告自动化</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ops" data-scene="pricing" style="animation-delay:.25s"><div class="card-tag">定价</div><h3>智能定价促销</h3><p>实时感知库存与竞品，最优促销方案自动生成</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ops" data-scene="supplychain" style="animation-delay:.30s"><div class="card-tag">供应链</div><h3>供应链协同</h3><p>供应商实时协同、芯片短缺预案、碳足迹溯源</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ops" data-scene="hrops" style="animation-delay:.35s"><div class="card-tag">人才</div><h3>HR人才管理</h3><p>智能招聘、离职预测、组织健康度监测</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ops" data-scene="finops" style="animation-delay:.40s"><div class="card-tag">财务</div><h3>财务智能</h3><p>成本预测、现金流预警、跨区域财务报告自动化</p><span class="card-arrow">↗</span></div>
+    </div>
+  </div>
+  <div class="cat-section">
+    <div class="cat-label"><span class="cat-dot" style="background:var(--amber)"></span><span style="color:var(--amber)">产业服务</span><span style="color:var(--text-dim)">· Industry</span></div>
+    <div class="cards-grid">
+      <div class="card" data-cat="ind" data-scene="charging" style="animation-delay:.05s"><div class="card-tag">补能</div><h3>充电补能</h3><p>主动规划充电时机、桩位推荐、错峰调度</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ind" data-scene="rd" style="animation-delay:.10s"><div class="card-tag">研发</div><h3>研发制造</h3><p>质检AI、仿真加速、供应链风险预警</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ind" data-scene="mobility" style="animation-delay:.15s"><div class="card-tag">出行</div><h3>出行服务</h3><p>网约调度、动态定价、司乘体验智能化</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ind" data-scene="pr" style="animation-delay:.20s"><div class="card-tag">舆情</div><h3>舆情口碑运营</h3><p>社媒监控、负面预警、KOC识别、内容运营</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ind" data-scene="dealer" style="animation-delay:.25s"><div class="card-tag">经销商</div><h3>经销商运营</h3><p>库存优化、员工培训助手、进销存智能预测</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ind" data-scene="energy" style="animation-delay:.30s"><div class="card-tag">能源</div><h3>能源管理</h3><p>电池健康全生命周期、梯次利用、碳资产管理</p><span class="card-arrow">↗</span></div>
+      <div class="card" data-cat="ind" data-scene="overseas" style="animation-delay:.35s"><div class="card-tag">出海</div><h3>出海合规</h3><p>欧盟GDPR/CBAM、整车认证、多市场法规差异自动映射</p><span class="card-arrow">↗</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="view" id="view-detail">
+  <div class="detail-nav"><button class="back-btn" id="back-btn">← 返回全景</button></div>
+  <div class="detail-body" id="detail-content"></div>
+</div>
+
+<script>
+const CC = { cabin:'var(--purple)', sales:'var(--teal)', ops:'var(--coral)', ind:'var(--amber)' };
+
+const S = {
+cockpit:{cat:'cabin',catLabel:'车内体验',title:'座舱助手 Agent',
+subtitle:'把车机从"语音遥控器"升级为"有记忆的行车伴侣"。核心价值不在于更准确的语音识别，而在于理解驾驶情境、主动预判需求、随时间积累用户画像——越用越懂你。',
+sections:[
+{num:'01',title:'产品定位与核心价值',type:'prose',content:`<p>传统车机解决"操作替代"——让司机不用手动按按钮；座舱Agent解决"情境服务"——在正确时机用正确方式主动提供服务。这是从工具到伙伴的本质跨越。</p><p><b>三层价值模型</b>：效率层（免手操作，减少驾驶分心，行驶中语音完成95%操作）、体验层（有温度的对话，理解情绪，不是冷冰冰指令）、成长层（记忆用户偏好，每次上车都比上次更懂你，6个月后体验领先竞品）。</p><p><b>竞争壁垒重构</b>：短期壁垒是模型能力（响应速度/意图准确率），中期壁垒是生态集成（第三方App/服务连接数），长期壁垒是用户记忆深度——这是不可迁移的资产，也是换车时最强的留存钩子。</p><p><b>商业模式</b>：基础功能随车出厂免费，高级AI功能（情绪伴驾/家庭管理/行程分析）订阅制，建议定价99-199元/月。生态服务佣金（餐厅预订/酒店/停车）为第二收入来源。</p>`},
+{num:'02',title:'核心功能模块拆解',type:'steps',steps:[
+'<b>多模态语音交互</b>：连续对话无需重复唤醒词，支持打断修正（"不是，换成后天"），容忍口语化表达（"去那个上次去的火锅店"）。意图识别涵盖导航、媒体、车控、通讯、查询、闲聊六大类共200+子意图。端侧ASR离线可用，复杂语义送云端大模型处理，混合部署保障弱网稳定性。响应延迟目标：简单指令 <400ms，复杂推理 <1200ms。',
+'<b>主动感知与情境切换</b>：Agent持续感知10类上下文信号——时间（工作日/周末/节假日）、地点（公司/家/陌生区域）、车速（停车/市区/高速）、电量、天气、车内人数、日历事件、用户情绪、连续驾驶时长、外部事件（前方拥堵/施工）。10类信号的组合触发不同场景模式：上班模式（路况+日程播报+屏蔽私人来电）、回家模式（轻音乐+温馨提示）、自驾模式（景点介绍+服务区提示）。模式切换时主动告知用户："我注意到您今天要去西藏，已切换到长途驾驶模式，我会每2小时提醒休息。"',
+'<b>主动服务推送</b>：主动推送分四级——安全类（疲劳/低电/危险路况，行驶中可推送）、行程类（出发建议/停车记录，停车时推送）、生活类（餐厅推荐/天气变化，等红灯时推送）、娱乐类（新歌/节目提醒，停车时推送）。每级有独立频控：安全类不限次，生活类每次驾驶最多1次，娱乐类默认关闭。频控参数随用户反馈自动学习调整。',
+'<b>车辆状态播报与自诊断</b>：上车启动时若有待处理事项主动播报（"今天出行前提示：左后轮气压偏低，建议检查；OTA更新已完成，新增停车自动记录功能"）。仪表盘故障灯亮起时，立即语音解读故障码含义和处理建议，而不是让用户对着图标不知所措。支持"这辆车还有多少电/油可以跑多远"等自然语言车况查询。',
+'<b>多人车内协同</b>：副驾/后排乘客可通过独立唤醒词（或App）发起指令，优先级低于主驾。后排可独立控制娱乐、调节座椅空调，但不得触碰导航和驾驶相关控制。识别儿童声纹时自动切换儿童模式（过滤成人内容，音量自动调低）。家庭账户支持4个成员画像独立学习。'
+]},
+{num:'03',title:'五层技术架构详解',type:'arch',rows:[
+['感知层（输入）','6-8支麦克风阵列（120°全向覆盖，波束赋形定向降噪，环境噪声90dB下仍可识别）+ DMS红外摄像头（驾驶员面部，眨眼/点头/视线追踪，低光感应）+ 方向盘压力/震动传感器 + CAN总线实时数据（车速/RPM/油耗/档位/电量/故障码，100ms轮询）+ 外部数据融合（高德路况/天气/日历/联系人，每30s刷新）'],
+['端侧处理层','端侧ASR芯片（高通8295或类似，离线语音转文字，时延<200ms）+ 端侧小模型（意图快速分类，<300ms，处理80%日常指令）+ 安全等级评估器（实时输出1-5级，决定当前可执行操作范围）+ 情绪/疲劳检测模型（视觉特征→状态评分，100ms更新）'],
+['云端AI层','多模态大模型（处理复杂意图/多步推理/情感对话）+ 用户画像服务（偏好存储/检索/更新）+ 知识库RAG（车辆手册/OTA记录/路线历史/家庭信息）+ 个性化推荐引擎（下一步操作预测）。云端调用仅在复杂场景触发，弱网时降级到端侧小模型'],
+['执行层（工具调用）','工具白名单三级管控：L1直接执行（调音量/导航静音/开关空调/切歌）无需确认；L2语音确认执行（发短信/微信/拨电话/修改目的地）用户说"确认"即执行；L3触屏二次确认（在线支付/分享位置/解锁车门/发朋友圈）必须触屏操作。车速>30km/h时L2操作降级为L3，车速>80km/h时L3操作临时禁用并提示停车后操作'],
+['记忆与学习层','短期记忆（当次行程上下文，对话历史，停车清除）+ 中期记忆（近30天行为偏好，自动总结更新）+ 长期画像（常用地点/家庭成员/作息规律/偏好标签，持久化，换车可迁移）+ 车辆档案（购车日期/保养记录/OTA版本/历史故障）。隐私控制：所有记忆用户可查看、编辑、选择性清除']
+]},
+{num:'04',title:'记忆飞轮与差异化壁垒',type:'prose',content:`<p><b>记忆积累路径</b>：第1周——通用体验与竞品无差；第1个月——识别常用地点（家/公司/健身房），记住音乐偏好，不再需要每次重新设置；第3个月——掌握作息规律，预知出行模式，出发前已准备好路线和音乐；第6个月——理解家庭结构，区分工作日/周末场景，成为真正的行程管家；第12个月——深度个性化，预判需求的准确率超过80%，此时换竞品意味着"从头开始"，迁移成本极高。</p><p><b>记忆确认机制</b>（关键体验设计）：学到新偏好时主动确认而非默默记住——"我注意到您最近三次都选文一西路避开滨江路，以后默认走这条吗？"用户感知到记忆在生长，建立信任感而非黑盒焦虑。每月推送"我的一个月"——列出Agent本月学到的5个关于你的偏好，让用户看见成长。</p><p><b>记忆迁移策略</b>：用户换车时，通过云端账户将画像迁移到新车，无缝衔接。这对车企是强绑定——用了3年座舱Agent的车主，换同品牌新车可以继承所有记忆，换竞品则从零开始。这是比任何硬件参数更强的品牌粘性。</p>`},
+{num:'05',title:'交互边界与安全原则',type:'prose',content:`<p><b>驾驶安全优先级框架</b>：座舱Agent所有设计决策都服从"驾驶安全第一"原则。分三个状态管理功能权限：</p><p>① <b>高速行驶（>80km/h）</b>：仅响应紧急安全类请求，不主动推送任何信息，禁止L2/L3操作，导航语音提示最简化（仅必要路口）；② <b>普通行驶（20-80km/h）</b>：响应全部语音指令，L1操作即时执行，L2需语音确认，主动推送仅安全类；③ <b>低速/停车（<20km/h）</b>：全功能开放，允许触屏交互，娱乐/生活类推送可触发。</p><p><b>打扰频控</b>：实验数据表明，单次驾驶被非紧急打断>3次，用户关闭功能概率>60%。因此设计"打扰配额"：每次驾驶非安全主动推送不超过2次，且两次间隔>15分钟。用户可在设置中调整为"静音模式"（只响应语音，不主动推送）。</p>`},
+{num:'06',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-6个月',title:'核心交互MVP上线',desc:'打通"唤醒→ASR→意图识别→工具调用→TTS播报"全链路。支持导航/音乐/空调/电话/车况查询5类核心指令，覆盖用户80%日常需求。端侧离线模式保证弱网可用。上线对话质量反馈机制（每次对话可评价），建立数据飞轮。关键里程碑：DAU/MAU语音功能使用率>40%，NPS>35分。'},
+{phase:'Phase 2 · 6-12个月',title:'情境感知与记忆体系',desc:'DMS摄像头接入，支持疲劳检测和情绪识别。用户画像模块上线，开始积累个性化数据。场景模式（上班/回家/出行/长途）全量推出。开放第三方App接入框架（餐厅/停车/加油/充电），引入合作伙伴生态。主动服务功能上线，以安全类提醒为切入点，验证用户接受度后逐步扩展。关键里程碑：画像准确率>85%，第三方合作方>20家，订阅付费转化率>8%。'},
+{phase:'Phase 3 · 12-24个月',title:'主动预判与生态变现',desc:'从被动响应升级为主动预判：出行前自动准备（路况+建议出发时间+目的地停车）；行程中风险预判（疲劳/天气/路况）；到达后自动收尾（停车记录+行程总结）。多Agent协同：与安全Agent/导航Agent/充电Agent深度联动，形成统一的车舱智能体验。商业化：生态服务（POI预订）佣金收入，高级功能订阅，用户画像数据（脱敏授权）价值变现。关键里程碑：月活用户NPS>50，订阅收入覆盖AI运营成本，第三方服务月交易额>5000万。'}
+]},
+{num:'07',title:'核心成功指标',type:'metrics',items:[
+{name:'语音意图准确率',target:'> 92%（复杂意图>85%）'},{name:'端到端响应延迟',target:'< 800ms（简单指令<400ms）'},
+{name:'主动介入满意率',target:'> 85%（误触发率<3%）'},{name:'功能月活跃率',target:'> 70%（DAU使用率>40%）'},
+{name:'用户画像预测准确率',target:'> 85%（6个月后）'},{name:'30日功能留存率',target:'> 60%（订阅付费留存>85%）'}
+]},
+{num:'08',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'高危',text:'端侧+云端混合延迟管控：弱网时必须降级到端侧模型，不能让用户等待云端响应超3秒，否则体验崩溃且难以挽回'},
+{type:'warn',label:'高危',text:'驾驶中主动打扰管控：设计频控机制，单次驾驶非安全推送≤2次，超过3次用户关闭功能概率>60%，是功能存亡红线'},
+{type:'warn',label:'合规',text:'DMS人脸数据须通过《个人信息保护法》和《汽车数据安全管理若干规定》审查，原始视频不得上传，只能上传特征值'},
+{type:'warn',label:'合规',text:'儿童声音和人脸数据受更严格保护，儿童模式下数据处理须符合《未成年人网络保护条例》'},
+{type:'info',label:'技术',text:'多方言支持成本高：普通话+粤语+四川话+上海话至少4套ASR模型，方言训练数据采集难度大，建议分阶段按区域优先级上线'},
+{type:'ok',  label:'机会',text:'用户画像数据（脱敏）对车企产品规划极有价值：哪些功能真正被使用，哪类用户更愿意付费，直接指导下代产品决策'}
+]}
+],related:['navigation','safety']},
+
+navigation:{cat:'cabin',catLabel:'车内体验',title:'智能导航 Agent',
+subtitle:'不只是"找路"，而是理解出行目的，动态权衡路况、能耗、时间、个人偏好，给出真正最优的整体行程方案，并在旅途中持续优化调整。',
+sections:[
+{num:'01',title:'产品定位：从找路到行程管家',type:'prose',content:`<p>传统导航解决"A到B最短路径"，智能导航Agent解决"这次出行的最优体验"。两者看似只差一步，实则是产品哲学的根本不同。</p><p><b>最优的定义因人而异</b>：对电动车用户，最优是"准时到达且电量够用"；对商务用户是"精准预估到达时间+不堵车"；对家庭出行是"有服务区+路途不枯燥"；对新手司机是"清晰指路+不错过路口"。Agent需要先理解"本次出行目标"，再基于偏好做权衡决策，而非默认"最短时间"。</p><p><b>四大能力升级</b>：① 行程感知（接入日历/天气/充电，统筹全局）；② 主动服务（不等你问，出发前主动通知）；③ 实时优化（每30秒刷新，发现更优路径主动提示）；④ 数据沉淀（每次行程积累，预测准确率持续提升）。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>智能出发规划</b>：接入用户日历（OAuth授权），自动计算"需几点出发"。计算逻辑：目标到达时间 - 预计行程时长（含实时路况）- 缓冲时间（10%波动余量）= 建议出发时间。提前30分钟主动播报："您9:00有会议，建议8:10出发，预计8:52到。今天滨江路轻度拥堵，建议走文一西路，多4分钟但稳定性更高。是否现在开始导航？"——用户零操作获得最优方案。',
+'<b>多目标行程规划</b>：同行程有多个目的地时（先买菜再接娃再回家），Agent自动用TSP算法优化途经顺序，最小化总时间。充电需求自动嵌入：电动车用户途中需充电时，Agent将充电站无缝插入行程，推荐"顺路且等待少"的充电站，不打断整体行程节奏。支持语音追加目的地："顺路买杯咖啡"——自动识别周边星巴克，按顺路程度排序推荐。',
+'<b>实时动态路径优化</b>：每30秒融合路况数据，发现拥堵提前2km预警。优化策略：预计延误>5分钟时主动提示绕行方案，给出"绕行多X分钟但当前拥堵预计延误Y分钟"的对比，让用户基于信息做决策。突发事件（事故/施工/临时限行）秒级响应重算。语音播报时机智能选择：只在直道、不在弯道和复杂路口播报，减少分心。',
+'<b>能耗感知导航（电动车专属）</b>：实时计算"到达目的地时剩余电量"，综合车速预测+坡度地图+温度影响（温度每降10°C，续航降约8-15%）+空调用电，精确度误差<5%。当预测剩余电量<安全阈值（默认15%）时，提前30分钟提示并在路线上标记充电站位置。支持"激进模式"（信任车主不充电）和"保守模式"（总留20%余量），用户可切换。',
+'<b>停车全流程管理</b>：目的地1km前自动查询周边停车场空位数量、实时价格（按小时/包天）、步行距离、是否支持无感支付。推荐策略：默认推荐"步行<5分钟+价格合理"的方案，不一定是最近的（最近的往往最贵）。停车后自动记录位置（拍照+GPS坐标+楼层/区域标记），防止找不到车。支持偏好学习："每次来这里都停B1层15区，以后默认推荐这里"。',
+'<b>行程复盘与个性化进化</b>：每次行程结束生成简报（时长/里程/能耗/与预估偏差）。Agent基于复盘数据持续优化：若用户连续3次拒绝某条推荐路线，自动降低该路线权重；若ETA误差持续偏高，触发路况数据源质量检查。6个月后，该用户的ETA准确率应比新用户高15%以上——这是个性化的核心价值。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['数据融合层','高精地图（四维图新/HERE，道路属性+限速+坡度）+ 实时路况（高德/腾讯双源融合，覆盖盲区互补）+ 充电桩多运营商聚合数据（国家电网/特来电/星星，每30s同步）+ 停车场系统API（实时空位）+ 天气API（逐小时预报，影响能耗和路况）+ 用户日历（OAuth，只读取出行相关事件）'],
+['预测计算层','动态路径规划引擎（A*+实时权重更新，支持多目标优化）+ 能耗预测模型（车型参数×速度曲线×坡度×温度，误差<5%）+ ETA预估模型（历史速度分布+实时路况，误差<3分钟）+ 停车推荐排序（距离/价格/空位率三维加权）'],
+['Agent编排层','行程意图解析（自然语言→结构化行程请求）+ 多步规划分解（复杂行程拆解为子任务序列）+ 工具调用编排（充电/停车/餐饮/日历工具的协同调用）+ 主动触发引擎（监控触发条件，决策是否推送）+ 用户偏好学习（行为反馈→路线权重调整）'],
+['交互呈现层','车载主屏地图（实时3D路径可视化，前方50m路况着色）+ TTS语音播报（车内声学调校，音量随车速自适应）+ HUD抬头显示（关键转向信息，驾驶员不用低头）+ 手机App（停车提醒/行程分享/远程查看）'],
+['安全与降级层','离线地图包（无网络时基础导航可用）+ API熔断保护（单源异常自动切备源）+ 用户干预优先（任何时刻用户手动修改优先于Agent推荐）+ 播报限流（行驶中最大语音提示频率，避免信息过载）']
+]},
+{num:'04',title:'主动服务的触发机制设计',type:'prose',content:`<p>主动服务是智能导航最大差异化，但设计不好会变成"烦人弹窗"。触发机制需回答三个问题：什么时候推、推什么内容、用什么方式推。</p><p><b>触发条件（When）</b>：日历事件（T-40分钟）、低电量+目的地距离接近续航（实时监控）、检测到出发意图（发动机启动+日历当天有外出安排）、行程中发现拥堵延误>8分钟。</p><p><b>推送内容（What）</b>：以自然语言方案呈现，不是"发现拥堵，是否绕行？"，而是"滨江路堵了，现在改走文一西路多3分钟，能准时到，需要现在切换吗？"——给方案，不给选项表格。</p><p><b>推送方式（How）</b>：车速>20km/h只语音（不弹屏幕）；停车时语音+屏幕；紧急安全类（续航不足/严重拥堵）跨越频控限制可直接推。</p><p><b>典型主动服务案例</b>：早7:50，车辆启动，Agent主动说："您9:00有会议在西湖区政务中心，建议现在出发，走绕城高速，预计8:48到，路上没有明显拥堵，是否开始导航？"——用户只需说"好"，一切就绪。</p>`},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'增强型导航基础版',desc:'接入双源实时路况动态绕行（提升ETA准确率是信任基础，是最优先任务）。上线停车场空位查询和推荐。支持自然语言目的地输入（"附近评分最高的火锅店"→解析→导航）。充电预警基础版（低电量时提示最近快充桩）。关键里程碑：ETA误差<5分钟准确率>85%，停车推荐使用率>40%。'},
+{phase:'Phase 2 · 4-9个月',title:'行程管家能力上线',desc:'接入日历，实现出发建议自动推送（试运行期用户主动开启）。充电行程规划深度联动，多目标行程自动优化上线。行程复盘功能上线，开始积累个性化偏好数据。能耗预测模型上线（初期仅支持本品牌热销车型，逐步扩展）。关键里程碑：主动出发建议满意度>80%，充电规划用电成功率>95%。'},
+{phase:'Phase 3 · 9个月+',title:'预测性服务与数据变现',desc:'主动预判全面上线（不只是出发提醒，还有行程中的餐饮/服务区推荐）。与城市级交通数据对接，加入车队预测（多辆同品牌车辆路况共享）。停车数据变现探索：与停车场运营商数据共享，换取更精准的实时空位数据和优先推荐位。POI导流佣金商业化（用户跟随导航到达餐厅等场所，向商家收取导流费）。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'ETA准确率（误差<5min）',target:'> 88%（新用户），> 92%（6个月+用户）'},{name:'绕行方案采纳率',target:'> 62%（提示后）'},
+{name:'充电规划到达成功率',target:'> 95%（无低电量中途趴窝）'},{name:'主动推送满意度',target:'> 80%（NPS评分）'},
+{name:'用户修改路线频率',target:'< 15%（推荐路线被采纳率>85%）'},{name:'停车推荐使用率',target:'> 50%（目的地500m内）'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'高危',text:'充电桩假忙率是最大坑：显示可用实际故障，导致用户按推荐开过去扑空，一次坏体验需5次好体验弥补，需多源交叉验证+用户快速反馈机制'},
+{type:'warn',label:'技术',text:'30+充电运营商API接口标准不统一，实时性参差不齐，需建立数据标准化中间层和质量评分体系，低质量数据源降权'},
+{type:'warn',label:'体验',text:'主动推送频率控制：过于频繁导致用户关闭功能，过于保守则体现不出AI价值，需基于A/B测试找到每类用户的最优频率'},
+{type:'info',label:'商业',text:'地图底图授权费用高，需评估自建地图团队vs采购方案，中长期可探索与OEM联合建图共享成本'},
+{type:'ok',  label:'机会',text:'行程数据是高价值资产：用户每天去哪、在哪停留多久，对零售选址/广告投放/城市规划均有价值，需在合规框架内探索变现'}
+]}
+],related:['cockpit','charging']},
+
+safety:{cat:'cabin',catLabel:'车内体验',title:'驾驶安全 Agent',
+subtitle:'通过持续感知驾驶员状态和行车环境，在事故发生前主动干预。不是事后报警，而是提前预防。目标是让每一次行程都以安全到达结束。',
+sections:[
+{num:'01',title:'产品定位：从被动报警到主动预防',type:'prose',content:`<p>传统行车安全系统是"发生了再响"——AEB在即将碰撞时才刹车，疲劳检测在你已经打瞌睡时才报警。驾驶安全Agent的核心价值是"发生之前就干预"——在疲劳累积到危险程度前，提前3-5分钟识别风险信号并介入。</p><p><b>三类风险场景</b>：驾驶员状态风险（疲劳/分心/情绪激动）、驾驶行为风险（超速/跟车过近/急转）、环境风险（雨雪路面/急弯/前方事故）。三类风险叠加时（高速+疲劳+雨天），威胁呈指数级上升，Agent需要进行多维融合评估而非单一指标判断。</p><p><b>设计原则</b>：宁可降低召回率（不是每个轻微信号都触发），也不能提高误报率（误报导致用户关闭功能比没有保护更危险）。功能关闭率<8%是最重要的产品健康指标之一。</p>`},
+{num:'02',title:'核心检测能力详细拆解',type:'steps',steps:[
+'<b>疲劳驾驶检测</b>：DMS摄像头持续采集眨眼频率（正常15-20次/分钟，疲劳时<8次）、眼睑下垂程度（PERCLOS指标：眼睛闭合时间/总时间，>30%为高风险）、点头（头部倾斜角度>15°且低频震荡）、打哈欠（嘴部开合幅度+持续时间）。同时融合行为数据：连续驾驶时长（2h后风险显著上升）、方向盘微抖动频率（疲劳时高频小幅抖动）、车道偏移次数（正常<2次/10分钟，疲劳时>5次）。三维信号融合评分0-100，>60分触发预警，>80分强制干预。',
+'<b>分心驾驶检测</b>：视线追踪是核心——连续>3秒不看前方（低头/侧看/闭眼）即判定分心。细化场景：使用手机（识别低头+手持姿势）、与乘客互动（长时间转向侧面）、情绪激动（表情识别：愤怒/沮丧状态下注意力下降30%）。分心检测特别需要考虑误判率：驾驶员查看盲区、观察路边标识等是正常行为，需结合车辆行驶状态过滤（高速时判定阈值更严格）。',
+'<b>危险行为识别</b>：超速监控（GPS车速+路段限速地图比对，超速10%以内提示，超速30%以上强制告警）、跟车距离（毫米波雷达测距，TTC时间距离系数<2.5秒预警，<1.5秒强制介入）、急加速/急刹车/急转弯（三轴加速度传感器，阈值可基于驾龄和风格个性化校准）、频繁并线（横向速度+变道频率，识别情绪性驾驶）。',
+'<b>危险环境感知</b>：结合天气API（雨/雪/雾天气，摩擦系数降低提示减速）、前车事故视频识别（行车记录仪+云端实时路况）、前方急弯道路属性（地图曲率数据，提前2km降速提示）、夜间弱光环境（适当降低疲劳检测阈值，因夜间驾驶风险更高）。',
+'<b>紧急情况处置</b>：驾驶员突然失能（方向盘无操作>8秒+车辆持续偏移），触发最高级干预：强制鸣笛+闪灯+推送位置给紧急联系人+自动接入平台安全系统（若接入联网服务）。支持乘客触发SOS（后排独立紧急按钮）。'
+]},
+{num:'03',title:'五级干预梯度体系（核心产品逻辑）',type:'prose',content:`<p>安全Agent最大挑战不是检测准确率，而是干预策略设计。干预太强用户关功能，干预太弱没效果，两种失败都危险。五级梯度体系是解决这一矛盾的核心设计：</p><p><b>L1 · 环境调节（静默干预）</b>：用户无感知。自动将车内温度降低1-2°C（提神效果显著）、将音乐节奏提升（从80BPM切到120BPM）、轻微增加车内灯亮度。适用：疲劳早期信号（评分60-70分）。特点：零打扰，但效果有限。</p><p><b>L2 · 视觉提示</b>：仪表盘出现图标提示（咖啡杯/叹号），不播语音，不打断用户。适用：疲劳中期（70-80分）或分心首次检测。特点：轻度提醒，保留用户自主判断空间。</p><p><b>L3 · 语音轻提醒</b>："建议适当休息。"一句话，不重复，之后5分钟内不重复同类提示。适用：疲劳中高期（80-88分）或连续分心>10秒。特点：直接告知，但语气温和，给用户面子。</p><p><b>L4 · 语音+触觉强提醒</b>：语音提醒（"请注意！您的驾驶状态存在风险，建议立刻停车休息！"）+方向盘震动（3次，0.5秒间隔）+座椅振动。适用：疲劳高危（>88分）或急刹/急并线行为。特点：强感知，用于真实高风险场景。</p><p><b>L5 · 强制干预</b>：中央屏幕覆盖所有娱乐内容显示安全警告，必须用户点击确认才能恢复，同时语音重复提示。适用：驾驶员连续5分钟疲劳信号+忽略L3/L4提示。特点：最后手段，频率极低（每百次驾驶<1次）。</p>`},
+{num:'04',title:'四层技术架构',type:'arch',rows:[
+['感知输入层','DMS红外摄像头（主动红外补光，强光/逆光/夜间均可用，需双摄冗余设计）+ 方向盘压力传感器（握力检测：<5N视为无操控，可能失能）+ 毫米波雷达（前向77GHz，测距精度±20cm）+ 三轴加速度计（急动作识别）+ 麦克风（声音状态：打哈欠音频特征提取）+ GPS/IMU融合（车辆运动状态）'],
+['端侧推理层','专用NPU（端侧实时推理，每帧视觉检测<100ms）+ 多模态融合评分引擎（视觉×行为×环境三维加权，输出0-100风险分）+ 安全等级分类器（5级，实时输出）+ 个性化阈值引擎（读取用户历史反馈，调整触发阈值）'],
+['决策与学习层','干预策略引擎（规则+强化学习混合：规则处理明确高危，RL优化灰区判断）+ 反馈学习模块（用户对每次干预的响应记录→更新该用户阈值模型）+ 情境过滤器（高速/市区/停车场/隧道，不同场景差异化检测敏感度）+ 事件录像触发器（高危事件前后30秒视频标记存储）'],
+['执行与协同层','座舱Agent联动接口（协调音乐/温度/灯光调节）+ TTS播报控制（语速/音量/语气参数化，L3柔和，L4严肃）+ 触觉反馈控制器（方向盘+座椅震动强度/节奏控制）+ 紧急通知网关（平台安全系统/家人联系人/急救系统分级触发）+ 数据上报（脱敏特征值，用于模型迭代，原始视频不上传）']
+]},
+{num:'05',title:'个性化安全阈值学习',type:'prose',content:`<p>同样的眨眼频率，对于长期习惯少眨眼的用户是正常状态，对于另一个用户则是疲劳信号。固定阈值系统会导致大量误报。</p><p><b>基线学习（前30次驾驶）</b>：以静默观测模式（不触发任何干预）采集用户的"正常驾驶特征基线"——该用户正常状态的眨眼频率、视线分布比例、方向盘操控习惯。基线建立后才开始个性化判断。</p><p><b>反馈强化学习</b>：每次干预后记录用户响应：接受提醒并停车休息（正向信号，阈值合适）、接受提醒但未停车（中性）、忽略提醒继续驾驶（可能是误报，降低敏感度）、主动关闭功能（强负向，显著调高触发阈值）。经过50次以上反馈，该用户的误报率应比通用模型降低40%以上。</p><p><b>"狼来了"防控</b>：若某用户连续3次忽略同级别干预，当次后续同级别干预自动降级为更低级别，同时标记为"需关注用户"，触发产品运营介入（发短信/App推送解释功能价值）。</p>`},
+{num:'06',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'疲劳检测基础版（高速场景优先）',desc:'优先上线连续驾驶时长规则触发（>2h提醒，无需AI，准确率100%）+ DMS眨眼频率基础检测。只在高速公路场景激活（风险最高，误报容忍度也最高）。设定保守阈值，误报率要求<5%。MVP目标：让用户感知到功能存在且有用，功能关闭率<10%。'},
+{phase:'Phase 2 · 4-9个月',title:'多模态融合与个性化',desc:'引入三轴加速度+方向盘传感器，多模态融合提升准确率至>90%召回。上线分心驾驶检测（手机使用场景）。个性化阈值学习模块上线，积累用户基线数据。拓展到城市道路场景（调低敏感度）。与保险Agent联动：安全驾驶积分系统上线。'},
+{phase:'Phase 3 · 9个月+',title:'预测性干预与生态联动',desc:'预测性疲劳模型上线（在用户自己意识到疲劳之前识别早期信号）。紧急失能场景处置流程上线（与急救/平台安全系统对接）。基于积累数据发布年度安全驾驶报告（用户级），提升功能感知价值。保险联动成熟：安全驾驶积分影响续保保费，形成正向激励。'}
+]},
+{num:'07',title:'核心成功指标',type:'metrics',items:[
+{name:'疲劳检测召回率',target:'> 90%（不漏报真实疲劳）'},{name:'误报率',target:'< 5%（精准是功能存活关键）'},
+{name:'功能主动关闭率',target:'< 8%（关键健康指标）'},{name:'干预采纳率（用户响应L3+）',target:'> 65%'},
+{name:'关联险情事件下降',target:'> 20%（与历史同期对比）'},{name:'安全驾驶功能NPS',target:'> 40分'}
+]},
+{num:'08',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'生死线',text:'误报率控制是产品存亡关键：用户关闭安全功能后发生事故，产品承担舆论和法律风险；宁可少报轻微疲劳，也不能滥报导致关闭'},
+{type:'warn',label:'合规',text:'《个人信息保护法》明确：人脸信息需用户主动开启并授权，不得默认开启；DMS功能开启时必须显著告知数据处理方式'},
+{type:'warn',label:'法律',text:'Agent干预建议导致的交通事故责任归属尚无明确判例，需法务评估产品责任边界，用户协议需明确免责条款和干预建议的参考性质'},
+{type:'warn',label:'硬件',text:'强光/逆光/夜间DMS性能下降：需配置主动红外补光灯，建议双摄冗余（一主一辅不同角度），高温环境下红外灯发热管理'},
+{type:'info',label:'技术',text:'多人车内识别准确率下降：后排乘客面部被遮挡或互动时，主驾疲劳判断需特别过滤非主驾人脸干扰'},
+{type:'ok',  label:'商业',text:'安全驾驶数据授权给保险公司构建UBI产品，车主安全驾驶可降低保费5-15%，这是强激励用户开启并保持功能活跃的商业化手段'}
+]}
+],related:['cockpit','navigation']},
+
+sales:{cat:'sales',catLabel:'销售服务',title:'智能销售 Agent',
+subtitle:'把顶级销售顾问的经验标准化、24小时在线化。核心目标：让每条进线线索都得到高质量响应，同时把销售顾问从重复性工作中解放出来，专注高价值谈判和交付。',
+sections:[
+{num:'01',title:'产品定位：顶级顾问的规模化复制',type:'prose',content:`<p>汽车销售是决策周期长（平均3-6个月）、客单价高（10-50万）的复杂交易。顶级销售顾问的能力是：不急于推车，先帮客户想清楚需求，建立信任后自然推进。问题是顶级顾问是稀缺资源，而进线线索量是无限的。</p><p><b>智能销售Agent的核心价值</b>：把顶级销售顾问的思路和话术固化成系统能力，让每条线索都得到高质量响应，同时把销售顾问从"接电话/回微信"的重复劳动中解放，专注高净值用户的深度谈判和交付服务。</p><p><b>人机协同而非替代</b>：Agent负责前3/4的旅程（需求诊断→方案推荐→报价→线索培育），真人销售聚焦后1/4（高意向用户深度跟进→试驾→谈判→签单）。Agent是销售顾问的"智能前台+效率放大器"，不是替代品。</p><p><b>商业价值链条</b>：① 线索响应速度↑（5秒内首回复 vs 行业平均30分钟），② 线索质量↑（精准需求诊断），③ 销售顾问效率×3倍（处理线索量增加，人均成单量提升），④ 用户体验↑（随时在线，不被push，有温度），→ 综合成单率提升30%以上。</p>`},
+{num:'02',title:'销售漏斗全链路功能拆解',type:'steps',steps:[
+'<b>多渠道统一接入与首次响应</b>：官网/App/微信生态/抖音/天猫/懂车帝等全渠道线索统一汇入Agent。每个渠道有不同用户特征（抖音用户多为冲动型，官网用户多为对比型），首句话策略不同。首次响应<5秒，这是核心SLA——行业数据表明响应时间超1分钟，线索流失率+20%；超5分钟，+50%。Agent首句话不急于推车型，而是自然建立对话："您好，看到您在了解XX系列，请问您主要考虑什么用途的车？"',
+'<b>需求诊断多轮对话（最核心模块）</b>：5-7轮结构化追问建立精准需求画像。诊断维度：① 预算（显性预算 vs 实际承受力，两者经常不同）；② 用途（每天通勤距离/载客人数/户外需求）；③ 换购/首购（换购需了解旧车，首购需教育引导）；④ 决策角色（自己决定/家庭共同决策/公司采购）；⑤ 意向度（随便看看/认真对比/已有目标车型）。意向度判断影响跟进策略，高意向立即触发人工介入。',
+'<b>个性化方案推荐</b>：基于需求画像推荐2-3个车型+配置组合（不只推一款，给用户选择感但不造成选择困难）。推荐逻辑：80%权重匹配需求，20%权重引导升配（利润最优解）。生成对比表：不堆参数，用用户语言说明差异——"这款比那款多了后排独立空调，如果您经常带老人出行会舒服很多"。支持竞品问题：对比时客观陈述事实，不主观贬低，给出有依据的差异化优势（法务审核过的标准话术库）。',
+'<b>实时报价与金融方案</b>：接入金融系统实时计算：全款价格（含现金优惠）、按揭方案（首付比例/期数/月供/总费用）、融资租赁（月租/到期买断选项）、置换补贴（接入旧车估值API）。所有方案一键生成对比表，自动展示综合成本（不只看月供）。节假日/展会优惠实时同步（与定价系统数据直连，无延迟），避免报错价引发信任危机。',
+'<b>线索培育自动跟进系统</b>：未成交线索按意向度分级自动跟进（不同内容、不同频率）：高意向（15天内）——每3-5天发送个性化内容（同款车主真实评价/配置详解/限时活动）；中意向（1-3个月）——每1-2周发送行业资讯/品牌新闻/活动预告；低意向（3个月+）——每月1次，主要发重大促销。所有跟进内容个性化生成（基于需求画像），杜绝通用群发。检测到用户重新活跃时（点击/回复），触发高意向流程并推送给销售顾问。',
+'<b>试驾与成交辅助</b>：线上完成试驾预约（展示就近展厅实时时间档期），自动发送地图导航和停车提示。预约后发送"试驾准备清单"（证件/行驶本提醒），提升到店率。试驾后自动跟进："您今天试驾体验怎么样？有什么不满意的地方想了解一下。"收集反馈调整推荐策略。购车意向确认后，协助填写购车信息，对接库存确认现车或排产周期，发送购车进度节点通知。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['对话引擎层','多轮对话状态机（追踪销售漏斗阶段：线索→诊断→推荐→报价→跟进→试驾→成交）+ 意图分类器（咨询/比较/报价/投诉/转介绍等15类）+ 情感分析（识别焦虑/兴奋/犹豫/不满，调整话术策略）+ 话术知识库（优质销售对话案例训练，按漏斗阶段×用户情感×产品类别三维索引）'],
+['数据中台层','车型配置数据库（实时同步，含全国各省市价格差异和现有库存）+ 金融系统API（月供实时计算，批贷率参考）+ CRM系统（线索管理/销售顾问分配/跟进记录）+ 竞品数据库（主流竞品关键参数对比，每季度人工更新）+ 用户画像服务（需求标签/意向度评分/生命周期阶段）'],
+['个性化引擎层','需求诊断模型（多轮对话→结构化需求画像）+ 推荐排序模型（需求匹配度×库存状态×利润权重联合评分）+ 意向度预测模型（行为特征→购买概率，指导跟进资源分配）+ 跟进时机预测（何时触达转化率最高）'],
+['人机协同层','高价值线索自动升级规则（预算>40万/意向度>80%/回访>3次/明确要求真人）+ 实时对话摘要生成（销售顾问接手时一眼看懂需求+历史）+ 销售顾问AI助手（实时推荐应对话术，如遇到价格异议时给出最优应对策略）+ 转接通话摘要推送']
+]},
+{num:'04',title:'顾问人格与话术体系',type:'prose',content:`<p><b>三不原则</b>：不主动催促（前3轮绝不出现"今天下单享XX"等催促话术）；不贬低竞品（涉及竞品只陈述事实差异，不主观评价，避免法律风险）；不夸大优势（产品宣传内容须经法务和合规审核）。</p><p><b>案例化沟通策略</b>：参数堆砌不如真实案例。"续航600km"不如"我们有位和您情况类似的客户，每天通勤40km，一周只需要充一次电，而且他选择夜间谷电充，每月电费不到80元。"脱敏用户案例是对话转化率最高的内容资产。</p><p><b>人工转接时机精确识别</b>：以下5种信号任一触发自动升级：① 连续15轮对话未推进到报价环节；② 出现明确负面情绪词（"你们怎么这样""我要投诉"）；③ 明确表达要真人（"我要和真人说话"）；④ 预算>40万的高净值用户首次回复（高价值线索不能托给Agent）；⑤ 咨询内容超出Agent知识边界（政策性问题/非标定制需求）。转接时推送完整对话摘要和用户画像给销售顾问，无需重新介绍。</p>`},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'线索响应基础版',desc:'多渠道接入统一，5秒内首回复SLA保证。支持80%常见咨询（配置查询/报价/试驾预约）。接入CRM，线索自动录入分配，人工转接对话摘要推送。关键里程碑：线索首响应率>95%，人工处理量下降>40%，用户满意度NPS>30。'},
+{phase:'Phase 2 · 3-8个月',title:'智能诊断与个性化推荐',desc:'多轮需求诊断对话流上线，基于历史成交数据训练推荐模型（首批需要1000+成交案例作为训练集）。自动跟进系统上线，分级内容触达。人机协同成熟：销售顾问AI助手功能全量上线。关键里程碑：线索到试驾转化率提升>25%，Agent独立处理周期>10天的线索占比>60%。'},
+{phase:'Phase 3 · 8个月+',title:'预测性销售与全周期运营',desc:'购买意向预测模型成熟，高意向用户识别准确率>80%，精准分配销售资源。老车主换购运营体系上线（与售后Agent打通，基于保养里程触发换购沟通）。数据反哺产品规划：哪类配置转化率最高、哪类用户最易流失，输出给产品部门。探索AI销售员KPI体系：Agent成单率/平均订单价值/线索转化效率纳入产品运营考核。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'首次响应时间',target:'< 5秒（SLA 99%达标）'},{name:'线索到试驾转化率',target:'提升 > 30%（vs基准期）'},
+{name:'对话留资率',target:'> 45%（有效用户名+联系方式）'},{name:'跟进消息打开率',target:'> 35%（vs行业均值18%）'},
+{name:'人工转接率',target:'< 20%（Agent独立处理80%）'},{name:'Agent独立促成成单占比',target:'> 15%'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'高危',text:'价格实时同步是成败关键：与定价/金融系统直连，不得用静态配置表，报错价格是最大信任危机，可能引发大量投诉和退订'},
+{type:'warn',label:'合规',text:'金融产品宣传必须符合《广告法》和银保监会规定：月供计算须展示完整费用（含手续费/利息），不得只展示最低月供'},
+{type:'warn',label:'合规',text:'竞品比较内容每季度需经法务审核：客观参数可陈述，主观评价不可有，技术数据对比须注明来源（防虚假宣传诉讼）'},
+{type:'info',label:'运营',text:'冷启动阶段话术库质量决定效果：建议挑选公司top10%销售顾问的真实对话（脱敏）作为训练样本，而非凭空编写'},
+{type:'ok',  label:'机会',text:'对话数据是顶级市场情报：用户问什么（功能关注点）、和哪些竞品比（直接竞争对手）、在哪个价位犹豫（定价敏感区间），直接服务于产品和定价决策'}
+]}
+],related:['aftersales','cockpit']},
+
+aftersales:{cat:'sales',catLabel:'销售服务',title:'售后服务 Agent',
+subtitle:'将4S店客服电话中80%的重复性工作自动化，同时用主动服务模式提升车主满意度，把售后从"成本中心"转变为"用户留存利器"。',
+sections:[
+{num:'01',title:'产品定位：从成本中心到留存利器',type:'prose',content:`<p>传统售后服务的核心逻辑是"降成本"——减少客服人力，压缩单次服务时长。这导致车主体验差，出险率下降、保养到期不提醒，最终加速流失。</p><p><b>重新定义售后价值</b>：售后不是买车后的附属服务，而是车企与用户保持连接的最重要触点。每次保养接触都是增强品牌粘性、预埋换购意向的机会。售后Agent的目标是：让每次服务体验都超预期，在车主心里种下"下次还买这个品牌"的种子。</p><p><b>商业价值来源</b>：① 增值服务转化（原厂配件/延保/保养套餐/精品配件，客单价+30%）；② 换购转化（3-5年后老车主换购，比新客户转化成本低60%）；③ 主动召回预警（比投诉驱动提前3-6个月，大幅降低召回成本和声誉风险）；④ 客服降本（人工处理量-40%）。四个价值链条叠加，售后Agent投资回报率远高于销售Agent。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>智能故障诊断系统</b>：车主用自然语言描述症状（"仪表盘有个黄色小扳手图标亮了，同时车有点抖"）→ 多信号匹配（图标特征+症状关键词+车型年份）→ 识别故障码含义和关联故障 → 严重程度评级（紧急/需尽快处理/可继续行驶观察）→ 处理建议（三级分流：OTA可修复直接推送、车主可自检的给步骤说明、需到店的给预约链接）。覆盖95%以上常见故障码，复杂组合故障自动升级人工技术专家。',
+'<b>维保预约全流程自动化</b>：诊断完成或保养里程预警触发 → 自动匹配推荐服务网点（综合因素：距离×评分×等待时间×零件库存状态，而非仅距离最近）→ 展示日历视图时间档期（带实时空位显示）→ 一键预约并生成工单 → 预约确认短信/推送（含地图/停车建议）→ 提前1天+2小时双次提醒 → 到店时将诊断结果和车辆档案推送给接待顾问，零重复沟通。',
+'<b>维修过程透明化管理</b>：工单全生命周期状态机：入厂登记→技师检查→维修方案确认→维修中→质检→可取车。每个状态变更主动推送通知（推送前2-3秒延迟感知检测，确保推送到达）。实时进度查询：车主随时查看"我的车修到哪步了"，不需要打电话催。加项授权流程数字化：发现需额外维修时，推送明细+价格让车主点击确认，杜绝未经授权擅自维修引发的投诉。完工后推送详细账单（每项收费有说明），并要求车主到店前线上确认，减少柜台排队时间。',
+'<b>主动保养提醒体系</b>：里程触发：基于最近30天平均日行驶里程预测"距离下次保养剩余天数"（不是等里程表到期再提醒，而是提前14天）。时间触发：距离上次保养超过6个月即触发（无论里程）。驾驶强度修正：重载/频繁短途/高温地区驾驶，缩短保养间隔建议。季节性检查推送：换季时（4月/10月）推送检查建议（空调滤芯/轮胎/雨刮/防冻液），带预约链接。',
+'<b>主动安全预警</b>：OBD/远程诊断数据异常时（若车辆支持联网诊断），主动推送告警：刹车片磨损超标告警（剩余寿命<20%），轮胎使用年限超5年建议更换，蓄电池电压持续偏低提示（避免出行时无法启动）。早于车主发现问题，变被动投诉为主动关怀，服务感知分大幅提升。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['车辆数据层','车型全量数据库（故障码含义×车型×年款，覆盖99%量产车型）+ 车辆档案（购车日期/历史维修工单/OTA版本/保险信息）+ 远程诊断接口（OBD/车联网，实时故障码读取，需车辆支持）+ 用户行为数据（App活跃/历史咨询/满意度评价）'],
+['服务网络层','全国服务中心系统API（工位实时可用数/预计等待时长/零件库存）+ 技师排班接口（特定复杂维修需预约指定技师）+ 零件库存系统（预约时确认零件可用性，避免到场缺件）+ 物流API（配件调拨预估到货时间）'],
+['智能诊断引擎','故障码语义理解模型（自然语言症状→故障码映射，基于海量历史工单训练）+ 严重程度分类器（安全相关/功能性/外观性三级）+ 多故障关联分析（发现潜在连带问题）+ OTA可修复性判断器 + 技师诊断建议生成（给技师看的）'],
+['主动触达层','里程/时间双维预测模型（下次保养时间预测）+ 消息个性化生成引擎 + 多渠道触达策略（App Push>微信服务号>短信，按用户活跃渠道优先序）+ 触达时效管理（工作日9-20点投递，避免非工作时间打扰）+ A/B测试框架（持续优化触达文案）'],
+['数据飞轮层','诊断结论vs实际维修记录对比（模型精度持续提升）+ 满意度分析（服务中心/技师维度质量监控）+ 异常失效模式识别（召回预警）+ 知识更新机制（新故障模式，2周内入库）']
+]},
+{num:'04',title:'数据飞轮与召回预警（战略价值）',type:'prose',content:`<p><b>诊断模型飞轮</b>：每次维修完成，技师填写实际故障原因（标准化选项），与Agent诊断结论对比。10万条以上对比数据后，特定车型常见故障诊断准确率可超过人工经验判断。这是只有积累足够数据才能建立的护城河。</p><p><b>主动召回预警（最具战略价值的功能）</b>：分析所有在保车辆的故障模式，识别批次性零件异常失效——例如，某年款XX车型的刹车片，在行驶3万公里前投诉异常磨损的比例，比同类产品高出300%。传统流程需要收到足够投诉后才立案调查，从发现到启动召回平均12-18个月。Agent可以在异常信号出现的第1-2个月就生成预警报告，提前6-12个月触发调查，将一次大规模召回变成主动预防，单次可节省数亿召回成本，更重要的是避免安全事故和品牌伤害。</p><p><b>服务质量闭环</b>：每次维修满意度评价自动分析，识别低分服务中心（综合评分<3.8分触发运营干预）和低分技师（连续3次低分触发培训流程）。Agent自动生成服务质量分析周报，推送给区域服务总监。</p>`},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'数字化基础：工单透明+预约自动化',desc:'维保预约数字化（替代电话/人工），关键体验升级：可视化时间档期，1分钟完成预约。工单进度透明化推送，减少"打电话催"的场景。主动保养提醒（里程触发规则）上线。目标：人工客服处理量-40%，预约到店率>70%，满意度NPS+10分。'},
+{phase:'Phase 2 · 4-9个月',title:'智能诊断与主动安全',desc:'故障诊断模型上线（基于历史工单训练，初期支持Top 200故障码，占比>85%实际场景）。主动安全预警（刹车片/轮胎/电池）上线。OTA远程修复流程自动化。异常失效模式识别系统上线（召回预警V1版，先做数据可视化，不自动触发，人工审核）。目标：诊断自助解决率>50%，主动安全提醒转化服务率>35%。'},
+{phase:'Phase 3 · 9个月+',title:'预测性维护与商业化闭环',desc:'预测性维护功能上线（零件剩余寿命预测）。召回预警系统自动化，接入品质部门审批流程。增值服务推荐智能化（基于车辆状态和使用习惯，精准推荐原厂配件/延保/套餐，而非泛推送）。与销售Agent打通：换购预警（车龄>3年且多次大修，触发换购沟通）。与保险Agent打通：维修记录影响续保评分和定价。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'首次响应时间',target:'< 30秒（7×24小时）'},{name:'自助故障诊断解决率',target:'> 50%（无需人工）'},
+{name:'预约到店转化率',target:'> 70%（预约未到店率<30%）'},{name:'客服人工处理量下降',target:'> 40%'},
+{name:'主动提醒服务转化率',target:'> 35%（提醒后30天内到店）'},{name:'售后满意度NPS',target:'提升 > 15分'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'高危',text:'安全相关故障（制动/转向/安全气囊/燃油系统）诊断结论必须立即转人工技术专家审核，Agent不得独立给出"可等下次保养处理"的建议'},
+{type:'warn',label:'合规',text:'维修增项必须在施工前获得车主明确授权（电子确认留存），《消费者权益保护法》和各地汽车维修管理法规有明确规定'},
+{type:'warn',label:'合规',text:'召回预警数据涉及产品安全，需建立严格的数据治理和审批流程，错误的召回预警可能引发股价异动和监管关注'},
+{type:'info',label:'技术',text:'不同车型知识库维护成本高：多品牌/多年款故障码库需要专业团队持续更新，新款车型上市后2周内需完成知识库扩充'},
+{type:'ok',  label:'机会',text:'维修数据与保险公司脱敏共享，帮助精算定损，双方共赢：车企获数据变现渠道，保险公司降低理赔骗保风险'}
+]}
+],related:['sales','fleet']},
+
+fleet:{cat:'ops',catLabel:'运营管理',title:'车队管理 Agent',
+subtitle:'帮物流公司、出租车公司、网约车平台实现"每辆车每公里都可优化"。构建调度、监控、预测三个Agent协同工作的智能运营系统，用数据驱动的决策替代经验驱动的管理。',
+sections:[
+{num:'01',title:'产品定位：多Agent协同的车队操作系统',type:'prose',content:`<p>中大型车队（100辆以上）面临三个核心痛点：调度低效（靠经验和电话，响应慢、空驶多）、运营不透明（油耗/违规/状态实时不可见）、维保被动（急修频繁，计划外停运损失大）。这三个问题都有明确的数据解法，但传统系统只做数据展示，缺乏智能决策。</p><p><b>车队管理Agent的核心价值</b>：不是"更好看的报表"，而是"自动做决策"——调度Agent自动派单，不需要调度员打电话；监控Agent自动发现异常，不需要盯着大屏幕；预测Agent提前排好维保计划，不需要等故障发生再处理。三个Agent协同，实现车队"数据可见→决策自动→风险预防"的完整闭环。</p><p><b>ToB产品ROI量化</b>（100辆物流车队测算）：油耗优化-10%（月省约3万元）、计划外停运-30%（年省约30万元）、满载率+12%（年增收约50万元）。综合年度价值约80-100万，而SaaS年费仅10-15万，ROI达6-8倍——这是销售时最核心的说服逻辑。</p>`},
+{num:'02',title:'三大Agent协同架构详细拆解',type:'steps',steps:[
+'<b>调度Agent（实时决策核心）</b>：派单决策模型综合7个维度加权评分：① 当前位置（地理距离，权重30%）；② 空载状态（有无在途任务，权重25%）；③ 驾驶员工时（法规限制，剩余可驾时间，权重20%）；④ 历史完单率（可靠性评分，权重10%）；⑤ 区域供需平衡（单个区域不过度集中，权重8%）；⑥ 客户优先级（VIP客户优先分配最优司机，权重5%）；⑦ 车辆状况（近期维保状态，权重2%）。1秒内生成最优派单方案，支持调度员一键覆盖（保留人工最终决策权）。峰值处理能力：1000辆车/秒级实时调度。异常场景：当没有满足条件的车辆时，Agent说明原因并给出最优次优选项，而非静默失败。',
+'<b>监控Agent（7×24异常发现）</b>：持续监控每辆车12类指标，异常自动告警而非让调度员盯屏幕。关键监控项：GPS轨迹偏离（偏离规划路线>500m，5分钟未回到触发告警）；超速事件（超限速10%以内记录，20%以上实时告警）；急驾驶行为（急加速/急刹车/急转弯，三轴加速度>0.4g计1次，单日>5次推送警告）；油耗/电耗异常（与同类车型历史基准偏差>20%，可能是驾驶问题或车辆故障）；疲劳驾驶（连续行驶超4小时，推送给驾驶员App和调度后台）；计划外长时间停留（>30分钟未上报原因，触发询问）。所有告警分级：P1（安全类，立即推送给调度和司机）、P2（效率类，实时展示在大屏）、P3（统计类，次日报告汇总）。',
+'<b>预测Agent（提前规划，消除急修）</b>：基于每辆车的历史维修记录、行驶里程、零部件使用年限、驾驶强度（激进驾驶加速磨损），为8类核心零部件（刹车片/轮胎/发动机机油/皮带/电瓶/空调/悬挂/变速箱）分别建立寿命预测模型。预警触发：预测剩余寿命<15%时提前预警，自动在系统内生成维保工单建议，排入下周计划而非等急修。准确率目标：预测维保时间误差<±300km，减少急修发生率>30%。',
+'<b>报告Agent（零代码数据洞察）</b>：自动生成三级报告——日报（当天运营摘要+异常事件+司机行为TOP5）、周报（KPI趋势对比+成本分析+改进建议）、月报（全维度经营分析+预测下月运营风险+优化建议）。支持管理层自然语言查询——"上个月哪5辆车油耗最高，为什么"、"北京区域上周满载率为什么下降"——Agent自动分析多维数据并回答，无需人工出数据报告。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['数据采集层','车载OBD终端（CAN总线：转速/油耗/故障码/油门/刹车深度，10Hz采集）+ 4G/5G GPS高精定位（1Hz，精度<3m）+ 行车记录仪（视频，事件触发上传）+ 司机App（接单/打卡/异常上报/里程确认）+ 外部数据接口（天气/路况/油价/监管系统）'],
+['实时流处理层','分布式流处理平台（Apache Flink，处理每秒百万级GPS+OBD数据点）+ 时序数据库（InfluxDB/TDEngine，车辆轨迹历史，支持高频写入查询）+ 规则引擎（异常实时检测，<500ms告警响应）+ 消息队列（Kafka，解耦数据流各处理节点）'],
+['AI决策层','调度优化引擎（混合整数规划+启发式算法+在线学习，动态权重更新）+ 异常检测模型（统计基线+Isolation Forest，个车个基线，减少误报）+ 预测维保模型（Cox生存分析+梯度提升，8类零部件独立建模）+ LLM报告生成（结构化数据→自然语言分析，OpenAI/国产LLM可切换）'],
+['管理界面层','Web调度大屏（实时地图+车辆状态热力图+异常告警面板，1秒刷新）+ 管理端App（移动端报告+告警推送）+ 司机端App（接单/导航/签到/报告）+ BI可视化大屏（经营分析，支持自定义仪表板）+ 自然语言查询接口（语音/文字）'],
+['安全与合规层','数据分级访问控制（RBAC）+ 操作审计日志（所有Agent决策可追溯，含决策依据）+ 数据加密存储（车辆位置+司机信息敏感级）+ 告警阈值可配置（不同客户不同标准）+ 监管数据上报接口（交通部道路运输监督管理系统对接）']
+]},
+{num:'04',title:'商业价值量化与销售策略',type:'prose',content:`<p>ToB产品成单关键是ROI可量化。以100辆物流重卡车队为例，Agent上线后的价值测算：</p><p><b>油耗优化</b>：急加速/急刹车行为改善后平均节油8-12%（行业验证数据）。100辆车×月均柴油费8000元×10%=每月节省8万元，年省96万元。</p><p><b>计划外停运减少</b>：预测维保上线后急修频次降低约30%。每次急修停运平均损失2000元（维修费+货运违约+空载）。100辆车年减少约150次急修=年省30万元。</p><p><b>满载率提升</b>：智能调度减少空驶率约10-15%，直接增加运营收入。100辆车提升月均满载率10%≈增收约40万元/月（按月均单车运营收入8万元估算）。</p><p><b>综合ROI</b>：年度价值≈166万元（节省+增收）。SaaS年费：按车辆数收费，参考定价1200-2000元/辆/年，100辆约12-20万元。<b>ROI = 8-14倍</b>——这是首席财务官级别的决策依据。</p>`},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'基础监控可视化（低摩擦启动）',desc:'GPS实时追踪+行程记录，满足客户"知道车在哪、跑了多少"的最基础需求。日报自动生成，替代人工整理Excel。关键设计：零培训上手，管理员当天开通当天能看数据。里程碑：客户满意度>80%，数据完整率>95%（OBD/GPS连接稳定性是交付质量核心指标）。'},
+{phase:'Phase 2 · 3-8个月',title:'智能调度与行为分析',desc:'调度Agent上线（初期"建议模式"：给出推荐+理由，调度员确认后执行，不强制自动化）。驾驶行为评分体系上线，与绩效奖金挂钩（客户侧组织变革，需提前商务沟通）。油耗异常自动预警。首批车辆预测维保模型基于3个月积累数据建立，开始验证准确率。里程碑：调度建议采纳率>70%，油耗下降>5%（作为续费核心依据）。'},
+{phase:'Phase 3 · 8个月+',title:'自动化运营与生态扩展',desc:'调度自动化比例提升至>70%（高置信度场景自动执行，不确定场景仍需确认）。预测维保全量车辆上线，结果验证准确率>85%后对外宣传。自然语言报表查询开放给管理层。商业拓展：与保险/金融机构建立数据合作（脱敏车队数据→差异化车队险+融资租赁风控优化）。探索按价值收费模式（节省油耗分成），降低客户决策门槛。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'油耗/电耗下降',target:'8-12%（主要来自行为改善）'},{name:'计划外停运减少',target:'> 30%（急修频次）'},
+{name:'满载率/有效运营率',target:'提升 > 10%'},{name:'调度响应时间',target:'< 1秒（1000辆规模）'},
+{name:'预测维保准确率',target:'> 85%（±300km误差内）'},{name:'SaaS年度续费率',target:'> 85%（企业级产品核心健康指标）'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'法律',text:'驾驶员行为数据（GPS轨迹+驾驶行为评分）用于绩效考核或劳动合同，必须在劳动合同或单独协议中明确约定，否则面临劳动仲裁风险'},
+{type:'warn',label:'安全',text:'车辆实时位置和货物运输信息属于高价值情报，必须实施严格访问控制（仅授权人员可查看）和传输加密，防竞争对手渗透'},
+{type:'warn',label:'技术',text:'国内主流商用车OBD数据格式标准不统一（不同年款/品牌差异大），需建立专业数据标准化适配层，工程周期容易超预期'},
+{type:'info',label:'运营',text:'调度自动化推广需要客户侧组织变革配合（调度员角色从"决策者"转为"监督者"），需提前做变革管理，避免内部阻力'},
+{type:'ok',  label:'机会',text:'中大型车队是最理想的数据资产：每天产生大量真实运营数据，脱敏后对保险精算/城市物流规划/供应链优化均有极高商业价值'}
+]}
+],related:['aftersales','insurance']},
+
+insurance:{cat:'ops',catLabel:'运营管理',title:'保险理赔 Agent',
+subtitle:'把平均7-15天的理赔周期压缩到1-3天，同时提升定损准确率、降低骗保风险、改善出险车主体验。让理赔从"痛苦的等待"变成"顺畅的服务"。',
+sections:[
+{num:'01',title:'产品定位：把理赔从"痛苦等待"变成"顺畅服务"',type:'prose',content:`<p>车险理赔是用户生命周期中情绪最紧张、预期最高的接触点。出险时用户往往处于应激状态（焦虑/愤怒/无助），此时的服务体验会对品牌认知产生极强的锚定效应——理赔体验好=续保率高=口碑传播，反之亦然。</p><p><b>当前行业痛点</b>：理赔周期7-15天（材料往返/人工定损/审核排队）；线下定损调度成本高（每次现场定损约300-500元人工成本）；骗保率影响整体赔付率（行业估算骗保约占赔付总额的5-10%）；车主信息透明度低（不知道进展，频繁打电话催）。</p><p><b>AI保险理赔Agent的四大价值</b>：① 效率（T+1到账，当前T+7-15）；② 成本（自动化定损节省人力成本60%+）；③ 风控（反欺诈识别率>80%，减少赔付损失）；④ 体验（全程透明，状态实时可查，NPS大幅提升）。</p>`},
+{num:'02',title:'全流程Agent化功能拆解',type:'steps',steps:[
+'<b>事故报案：AI引导标准化取证</b>：App/小程序开启报案流程，Agent语音/文字引导车主完成标准化取证（8个固定角度照片+视频+说明文字）。实时画框指引："请对准车辆左前方45度拍摄"，确保照片质量。自动提取关键信息：照片EXIF（时间戳/GPS位置）校验与报案信息一致性；OCR识别对方车牌；NLP提取事故经过的时间/地点/碰撞方式。一致性自动核查：照片GPS与报案地点偏差>500m，或照片时间与报案时间差>2小时，自动标记人工核查（疑似材料造假）。',
+'<b>AI智能定损：毫秒级估损</b>：计算机视觉识别受损部件（主要部件识别精度>95%，包括车门/翼子板/保险杠/大灯/玻璃等40+类）+ 受损程度分级（轻微/中度/严重/全损，分级影响修复方案）。定损报价逻辑：① 识别受损部件 → ② 查询车型零件原厂价格（实时同步厂商价格库）→ ③ 计算折旧（基于车龄/里程/市场二手价模型）→ ④ 估算工时费（行业标准工时×本地工时单价）→ ⑤ 生成明细定损单（每项有依据）。与历史相似案例对比：相同车型相同部位平均定损±30%范围内为正常，超出则标记复核。复杂情况自动升级：内外兼损/火灾/水泡/严重形变，计算机视觉准确率下降，自动触发现场定损。',
+'<b>反欺诈智能核查（20+模型并行）</b>：规则模型（直接识别明确欺诈：照片时间早于车辆购置日期、损伤位置与事故描述力学矛盾）+ 图像分析（旧伤识别：同一位置历史有维修记录×新报案照片对比）+ 图神经网络（关联分析：车主-修理厂-中介-保险经纪人关系网络图，识别欺诈团伙）+ 行为模型（高频出险：近2年出险>4次触发重点审查；新保快出险：购保后<30天出险）+ 时空分析（报案地点路段历史案发频率异常高，可能是碰瓷高发区）。综合输出欺诈风险分（0-100分），>70分触发专项调查，30-70分人工重点审核，<30分进入正常流程。',
+'<b>分级审核与赔付决策</b>：三级审批矩阵（金额×风险分）：低金额(<5000元)+低风险(<30分)→Agent自动审批，T+1银行转账到账；中金额(5000-20000元)或中风险(30-70分)→简化人工审核（Agent已完成85%分析工作，审核员平均5分钟完成）；高金额(>20000元)或高风险(>70分)→完整人工审核+专项调查。赔付全链路状态通知：每个节点主动推送（无需车主主动查询），每步告知预计完成时间。',
+'<b>完结服务与用户关怀</b>：赔付完成后推送详细账单（每项费用有政策依据）。NPS满意度调查（3题精简版，减少完成门槛）。个性化安全建议（基于本次事故类型）：若本次是追尾事故，推送安全跟车距离建议；若是夜间驾驶，推送夜间驾驶安全提示。续保提醒提前45天，展示本期出险记录和续保参考价格（透明化减少续保阻力）。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['图像处理层','车损检测深度学习模型（基于500万+标注车损图片训练，覆盖40+受损部件类别）+ 零件分割模型（精确到每个受损部件，支持多损伤同框识别）+ 图像真实性检测（PS识别：压缩噪声分析/频域异常检测）+ 时间戳验证（EXIF提取+GPS核验）+ 旧伤对比引擎（历史档案照片+当前照片相似度比对）'],
+['定损计算引擎','零件价格数据库（实时同步400+车型×零件级价格，含4S/授权/副厂多价格档）+ 标准工时库（行业标准手册×本地人工成本）+ 折旧计算模型（车龄×里程×市场价格指数，精确到月）+ 历史案例相似度引擎（相同车型×相同部件×相似损伤程度的历史定损均值对比）'],
+['反欺诈引擎','规则引擎（直接欺诈识别，200+规则）+ 图神经网络GNN（4类实体：车主/车辆/修理厂/中介，关系图谱建模，识别团伙欺诈）+ 行为异常检测（个人维度统计基线）+ 时空异常检测（地理聚类，碰瓷高发区识别）+ 风险评分融合模型（多模型输出→综合分）'],
+['流程引擎层','案件状态机（8个状态节点的全生命周期管理）+ 自动化决策规则库（金额×风险分矩阵，可配置）+ 人工审核任务队列（智能优先级排序，高风险案件置顶）+ 赔付API对接（银行转账网关，T+1到账）+ 通知中心（App Push/短信/微信多渠道状态推送）'],
+['数据与合规层','全流程操作审计日志（每个决策节点记录依据，监管可查）+ 数据加密存储（车主隐私+事故照片分级加密）+ 数据最小化处理（反欺诈用完的原始照片按保险公司规定周期删除）+ 监管报告自动生成（中国银保监会格式要求）']
+]},
+{num:'04',title:'用户体验关键设计：有温度的服务',type:'prose',content:`<p>出险是车主情绪最脆弱的时刻，Agent交互设计不能是"系统风格"，必须有温度。三个关键体验原则：</p><p><b>① 预期管理优于快速处理</b>：说"2小时内完成定损"然后1.5小时完成，远比说"1小时"然后2小时完成效果好（预期心理学）。Agent在每一步都给出精准时间预测，并在完成前提前通知。若因核查需要延期，主动解释原因——"您的案件损伤金额超过1万元，需要安排定损员现场确认，已优先排期，预计明天上午10点前联系您。"</p><p><b>② 异常处理信息透明</b>：任何需要补充材料或额外核查，都主动说明原因——"我们发现您的照片中有一处损伤疑似历史损伤，需要您提供最近3个月的保养记录确认。"不让车主在不知原因的情况下等待，是减少投诉的最有效手段。</p><p><b>③ 拒赔必须人工复核+申诉权</b>：Agent识别到高风险时，不直接拒赔——它将案件推送给人工专员，由人工做出最终决定。所有拒赔必须提供明确政策条款依据（具体条款编号），并告知申诉渠道（在线申诉/保险监管投诉热线）。拒赔话术由法务部门审核，不能由Agent自由发挥。</p>`},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'数字化报案与进度透明',desc:'数字化报案流程上线（App引导拍照，替代线下或电话报案，节省定损员第一次现场电话沟通时间）。工单状态实时推送，减少车主主动查询电话（预期减少40%来电量）。标准化照片指引，大幅提升材料一次性完整率（减少来回补件），目标材料完整率>85%。里程碑：报案数字化率>60%，来电查询量-30%，NPS+8分。'},
+{phase:'Phase 2 · 4-9个月',title:'AI定损与反欺诈核心上线',desc:'车损识别模型上线（初期与人工并行运行，积累"AI定损vs实际维修"对比数据校验准确率）。反欺诈基础模型上线（规则引擎+行为异常检测），识别高风险案件。小额案件自动审批试点（<2000元+低风险，先保守范围扩大）。欺诈识别率目标>60%（后续随数据积累提升）。'},
+{phase:'Phase 3 · 9个月+',title:'全自动化与生态联动',desc:'AI定损准确率验证通过（误差<10%，占主要案件>90%）后，扩大自动审批覆盖至案件量>55%。GNN反欺诈上线（需积累12个月以上关系图谱数据）。与修理厂系统打通：无纸化授权维修，维修进度实时回传定损系统。与车载行驶记录仪联动：视频还原事故经过，大幅提升事故责任认定准确率（减少责任争议引发的理赔延迟）。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'平均理赔周期',target:'< 3天（当前行业7-15天）'},{name:'AI定损误差（<10%）',target:'覆盖率 > 90%案件'},
+{name:'自动审批率',target:'> 55%（按案件量）'},{name:'欺诈识别率',target:'> 80%（漏检率<20%）'},
+{name:'车主满意度NPS',target:'> 50分（当前行业均值约20-30）'},{name:'人工审核效率提升',target:'> 3倍（人均处理案件量）'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'高危',text:'定损误差>±15%引发车主投诉和纠纷：初期必须设置双重人工复核，以案件量5%抽检比例持续验证，误差超标立即暂停自动化扩展'},
+{type:'warn',label:'监管',text:'保险理赔受银保监会强监管：自动审批金额上限、理赔时效要求、拒赔规范均需向监管机构报备，跨省业务需注意地方规则差异'},
+{type:'warn',label:'合规',text:'照片和事故信息含大量个人隐私（位置/事故情况/对方信息），须严格执行数据最小化，按保险法规规定期限删除原始材料'},
+{type:'warn',label:'法律',text:'AI系统参与定损和审批决策，一旦发生争议，需能提供完整的"决策依据链"供法庭/监管审查，审计日志必须完整可检索'},
+{type:'info',label:'技术',text:'非标损伤（火灾/水泡/严重变形）AI准确率显著下降：需建立快速识别并转人工的分流机制，不能用通用模型硬套非标场景'},
+{type:'ok',  label:'机会',text:'理赔数据与充电/驾驶安全数据融合，可构建UBI（基于使用习惯的保险）产品：安全驾驶用户年保费可降5-15%，差异化定价是险企核心竞争力'}
+]}
+],related:['fleet','aftersales','health']},
+
+charging:{cat:'ind',catLabel:'产业服务',title:'充电补能 Agent',
+subtitle:'解决电动车用户里程焦虑的根本方案——不是让电池更大，而是让充电决策从被动应急变成主动规划，让每次出行都能轻松应对续航问题。',
+sections:[
+{num:'01',title:'产品定位：根治里程焦虑的主动解法',type:'prose',content:`<p>里程焦虑是电动车普及最大的心理障碍。主流解法是"增大电池"——但这是硬件层面的被动应对，成本高、重量大、边际收益递减。充电补能Agent是软件层面的主动解法：不需要更大的电池，只需要让充电决策变得足够简单和可靠，让用户永远不会陷入"快没电了不知道去哪充"的应激状态。</p><p><b>核心价值链</b>：让充电从"应激行为"变成"计划行动"——就像油车司机不会焦虑，因为他们知道随时可以在加油站5分钟解决问题。充电Agent的目标是给电动车用户同等的心理安全感，但通过"主动规划"而非"随处可充"实现。</p><p><b>商业模式</b>：服务佣金（用户通过Agent预约充电，向充电运营商收取3-5%导流费）+ 错峰调度激励分成（与电网/运营商合作，帮助削峰填谷，获取激励分成）+ 数据服务（充电行为数据对零售/地产/广告有价值，合规范围内商业化）。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>精准续航预测系统</b>：持续计算"真实剩余可行驶里程"（而非BMS显示的标称值，后者往往有15-30%误差）。真实里程 = 当前电量（kWh）÷ 当前能耗率（kWh/km，实时更新）。能耗率影响因子：① 当前车速（高速80km/h能耗比市区低约20%）；② 空调用电量（制冷/制热实时功率）；③ 路段坡度（上坡增耗15-40%，下坡回收）；④ 温度（低温-10°C时续航降30-40%）；⑤ 驾驶风格（急加速用户修正系数+15%）。所有因子实时融合，每10秒更新一次显示。续航预警：当"预测到达目的地时剩余电量 < 15%"时（提前20-30分钟），触发充电建议。',
+'<b>多目标充电桩推荐</b>：不是简单的"找最近的桩"。推荐引擎考量7个维度：① 实时等待车辆数（核心因素，实时数据）；② 充电速度（直流快充150kW vs 交流慢充7kW，影响等待时间）；③ 价格（峰谷电价差可达3倍，0.4元/kWh vs 1.2元/kWh）；④ 距离（包括充电后绕路回归的总路程代价）；⑤ 历史可靠性（该桩历史故障率、用户真实评分）；⑥ 目的地关联性（在目的地附近停留时顺便充电，零等待时间代价）；⑦ 用户偏好（历史选择的品牌/规格偏好）。给出3个方案+简明对比（"最快到""最省钱""最顺路"），让用户3秒做决定。',
+'<b>预约锁桩（高峰期核心体验）</b>：支持提前30分钟-4小时预约充电桩（需与运营商系统深度API对接，国内已支持预约的桩约占30%，快速增长中）。到达即可开始充电，无需排队。预约占桩保护：用户10分钟内未到则释放，防止占而不用。导航联动：预约成功后自动将充电站位置加入导航途经点，完全无缝。实时调整：导航时长超出预计>15分钟，主动询问是否延迟预约或取消重选。',
+'<b>充电过程智能管理</b>：充电开始时推送预计充满时间（基于当前充电功率曲线预测，电量>80%后功率下降需修正）。智能停充建议：若用户日常行驶<80km，建议充至80%即停（保护电池寿命，减少等待时间）；长途出行则建议充满。充满前15分钟推送提醒（给用户时间走回停车场）。充电中断（故障/断电/其他车辆拔枪）立即推送，并给出最近备选充电桩导航方案，用户一键跳转。',
+'<b>费用结算与能耗账单</b>：充电完成自动结算（绑定支付宝/微信/各运营商会员账户，无需每次操作）。充电明细账单：充电量（kWh）×时长×单价（含分时段价格明细）= 总费用。月度能耗分析报告：vs油车等效费用对比（"本月用电成本XX元，等量燃油费约XX元，节省XX元"）；vs上月能耗趋势（季节变化分析）；高耗电日自动分析原因（长途/低温/激烈驾驶）。',
+'<b>错峰充电与激励机制</b>：电网谷时（通常23:00-7:00，价格最低）充电提醒：非紧急场景（家中或固定停车场）推送次日出行所需充电量建议和最优充电时间。用户按建议错峰充电后，每度电节省约0.6-0.8元，月均节省约30-50元（形成可量化的个人收益）。激励机制：积分奖励（错峰充电积分可换充电优惠券），与车企/运营商三方合作。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['车端数据层','BMS实时数据（电量SOC/电压/温度，100ms精度）+ 电机控制器数据（实时功率/效率）+ 空调控制器数据（当前用电功率）+ GPS+IMU（位置/速度/坡度实时计算）+ 车联网模块（4G/5G，数据上云延迟<1秒）'],
+['外部数据融合层','充电桩多运营商实时数据聚合（国家电网e充电/特来电/星星充电/小桔/云快充等，API接入，30秒同步一次桩状态）+ 电网实时价格API（分时段峰谷价）+ 天气预报API（低温/大雨对续航的影响）+ 地图路段坡度数据（高精地图分段海拔）'],
+['预测与优化层','能耗预测模型（多因子实时回归：车速×坡度×温度×空调×驾驶风格，训练数据来自车型级实测）+ 充电等待时间预测（历史到达率×当前等待队列×充电时长分布）+ 价格优化模型（当前+预计到达时的价格预测）+ 多目标推荐引擎（7维评分的Pareto最优解）'],
+['用户交互层','车机HMI（地图上实时显示充电桩状态热力图+推荐标记）+ 手机App（充电进度/账单/预约管理）+ 语音交互（"前方有合适的充电站吗"→语音回答+地图标注）+ 智能手表推送（充电完成提醒）'],
+['商业化与生态层','充电运营商分佣结算系统（按导流单量×佣金率自动结算）+ 电网削峰填谷激励API对接 + 数据资产管理（脱敏用户充电行为数据，商业化API）+ V2G接口预留（未来反向放电调度）']
+]},
+{num:'04',title:'最大挑战：数据孤岛破局策略',type:'prose',content:`<p>中国充电桩市场有30+运营商，各自独立建设，数据完全隔离。"找到可用充电桩"是充电Agent最基础也最难解的问题。</p><p><b>分阶段数据策略</b>：第一阶段，接入覆盖率>70%的5家头部运营商（国家电网+特来电+星星充电+小桔+云快充），通过第三方充电聚合平台API快速获取多运营商数据（前期效率最高）。第二阶段，与各运营商直签数据合作协议，用"导流量换实时数据精度"——Agent每月带来X万次预约，换取实时桩状态而非5分钟延迟数据。第三阶段，建立用户众包纠错机制：用户到达后桩实际不可用，可一键反馈，反馈数据用于实时修正桩状态数据库（激励：反馈成功送充电积分）。</p><p><b>"假忙"问题（行业最大痛点）</b>：桩位显示"使用中"实际是故障或网络断联，估计影响约15-20%的桩位。解决策略：多源交叉验证（运营商状态+用户签到数据+摄像头视频识别，三源以上一致才标记为可用）；历史故障率标记（高故障率桩在推荐时降权）；实时响应用户反馈（假忙反馈3次则临时下线，等运营商确认后恢复）。一次空跑的负面体验需要5-8次成功体验才能弥补，假忙率<5%是产品信任的基础线。</p>`},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'基础续航监控与桩位查询',desc:'接入头部3-5家运营商数据，上线精准续航预测（真实可行驶里程显示，而非标称值）。续航预警提前20分钟触发（基于目的地距离实时计算）。基础桩位查询（按距离+实时空位）。充电自动结算（主流支付绑定）。关键里程碑：用户"续航耗尽趴窝"事件减少>50%，桩位推荐空跑率<15%。'},
+{phase:'Phase 2 · 3-8个月',title:'智能推荐与预约系统',desc:'多目标推荐算法上线（7维评分，含价格和等待时间）。与主要运营商打通预约接口（锁桩功能）。能耗预测模型上线，提升续航预警准确率。错峰充电建议功能上线，激励机制上线。月度能耗报告上线，强化产品感知价值。关键里程碑：充电推荐用户采纳率>60%，错峰充电比例提升>25%。'},
+{phase:'Phase 3 · 8个月+',title:'主动规划与产业生态',desc:'出行前充电规划自动嵌入导航（长途出行自动推荐中途充电节点）。V2G功能上线（具备放电能力的车主，在电网高峰时段反向卖电，获取额外收益）。充电数据商业化：脱敏用户充电行为数据→商业分析API（零售选址/停车场价值评估），对外提供付费数据服务。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'续航耗尽趴窝事件',target:'减少 > 70%（vs基准期）'},{name:'充电等待时间',target:'减少 > 30%（预约+推荐组合）'},
+{name:'电费节省（错峰）',target:'用户月均节省 > 20%（vs随机充电）'},{name:'桩位推荐空跑率',target:'< 5%（假忙控制红线）'},
+{name:'预约成功率',target:'> 90%（预约后到达即可充）'},{name:'能耗预测误差',target:'< 5%（真实里程 vs 预测）'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'生死线',text:'桩位假忙率>10%会导致用户快速流失：需建立多源交叉验证+用户众包纠错机制，假忙率是产品核心健康指标'},
+{type:'warn',label:'技术',text:'各运营商API稳定性差异极大：需设计熔断降级（API宕机时用缓存数据+打标注更新时间），单点故障不能影响整体可用性'},
+{type:'warn',label:'商务',text:'运营商数据接入是商务谈判而非纯技术问题：部分运营商有数据保护意愿，需用导流量（用户价值）换数据质量，需要较长商务周期'},
+{type:'info',label:'政策',text:'V2G商业化面临政策障碍：反向充电收益的电价结算标准尚不统一，各省规则不同，上线前需逐省确认合规性'},
+{type:'ok',  label:'机会',text:'充电行为数据极具商业价值：用户在哪里充电（停留位置）、充电时长（停留时长），对零售选址/停车场定价/城市规划均有价值'}
+]}
+],related:['navigation','cockpit']},
+
+rd:{cat:'ind',catLabel:'产业服务',title:'研发制造 Agent',
+subtitle:'把AI引入汽车研发和生产制造全流程，目标是缩短研发周期30%、将质检漏检率降至0.1%以下、将供应链风险预警提前60天以上。',
+sections:[
+{num:'01',title:'产品定位：AI赋能研发制造全流程',type:'prose',content:`<p>汽车研发制造是决策风险最高的Agent应用场景——质检一次漏检可能导致大规模召回，供应链决策失误可能导致停产，设计缺陷迟发现会带来极高的设计变更成本。这决定了该场景的核心产品原则：<b>AI辅助，人工决策</b>，绝不能在验证准确率之前让AI独立决策。</p><p><b>四大应用场域</b>：① 生产质检（视觉AI替代人工抽检）；② 研发加速（知识库+仿真辅助）；③ 供应链风险（预警前置）；④ 数字化协同（研发信息无缝流转）。每个应用场域的技术成熟度不同，落地策略和风险等级也不同，需要分别设计。</p><p><b>投资回报</b>（以整车厂年产10万辆为例）：质检漏检率从2%降至0.1%，每年减少约1900辆有缺陷车辆出厂，避免召回成本约5000万元；仿真周期缩短30%，每个新车型研发周期少6个月，相当于提前半年上市；供应链预警提前60天，避免一次停产损失约1-3亿元。</p>`},
+{num:'02',title:'四大应用场景功能拆解',type:'steps',steps:[
+'<b>智能质检系统（最成熟场景，优先落地）</b>：工业视觉摄像头阵列（每工位4-8台，不同角度/波长，覆盖焊接/涂装/装配/密封件）。检测能力：焊接质量（气孔直径>0.3mm/裂纹长度>2mm/飞溅直径>1mm的精确识别）、涂装缺陷（流挂/橘皮/色差ΔE>1.5/缩孔直径>0.5mm）、装配误差（螺栓扭矩±10%以上/零件位置偏差>±0.3mm）。检测速度：全车外观检测<8分钟（传统全人工抽检30+分钟，且只检10%）。漏检率目标：从人工2-3%降至0.1%（安全件更严格：0.01%）。发现缺陷立即停线并推送到对应工位负责人，生成缺陷位置热力图报告。关键设计：轻微缺陷（外观瑕疵，不影响安全）标记修复，严重缺陷（结构/安全件）触发隔离和根因分析流程。',
+'<b>仿真辅助加速（技术复杂，中期落地）</b>：CAE仿真是研发最耗时的环节（一次整车碰撞仿真需要8-24小时计算）。AI辅助价值：自然语言查询仿真结果（"这个车型40km/h正面碰撞结果怎样，和上一代相比有哪些改善"→Agent检索仿真数据库并生成对比报告）；参数推荐（基于历史仿真结果推荐新模型的初始参数范围，减少工程师"瞎猜"的试错次数）；迁移学习（将已有车型仿真结果迁移到相似平台车型，减少重复仿真计算量35-40%）；异常识别（仿真结果与设计目标偏差>阈值时自动标记，而非等工程师人工比对）。',
+'<b>研发知识库与协同（高价值，推广难）</b>：将分散在各部门的设计文档（CAD/CATIA）、失效分析报告（FMEA/8D）、竞品拆解数据、法规库（国内+欧盟+美标）、专利库、历史项目经验（包括失败案例）统一建库，支持自然语言检索。最大价值：新工程师问"有没有做过类似悬挂结构，当时遇到什么问题，最终解决方案是什么"——Agent从历史项目中召回相关案例和教训，平均减少新工程师的"重复踩坑"时间60%以上。推广难点：研发数据是核心机密，跨部门数据共享需要公司级数据治理政策支持，技术不是障碍，组织权限是障碍。',
+'<b>供应链风险预警（战略价值高，实施周期长）</b>：实时监控500+核心零部件供应商的多维指标：交期履约率（近3个月历史，<95%预警）、质量合格率（PPM值趋势，超标预警）、产能利用率（>90%或突降>20%均为风险信号）、财务健康度（应付账款周转/流动比率，通过商业数据库获取）、地缘政治风险（供应商所在国家/地区的政策风险指数）。供应链风险预警提前60天以上，自动触发备货或备选供应商评估流程，给采购团队足够的决策缓冲。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['感知与采集层','工业相机阵列（彩色+红外+深度，不同工位场景定制配置）+ 线激光扫描仪（精密尺寸检测，精度±0.01mm）+ 振动/声音传感器（发动机/变速箱异音检测）+ 边缘计算节点（每工位本地计算，<500ms实时判断，减少网络延迟影响）+ OBD/测试台架数据采集'],
+['数据集成层','PLM系统对接（设计BOM/版本变更历史）+ MES系统对接（生产工单/工位状态/不良记录）+ ERP系统对接（供应商订单/库存/成本）+ 供应商Portal（质量数据/交期确认）+ 文档管理系统（设计文档/FMEA/报告，向量化建库）'],
+['AI计算层','质检视觉模型（ResNet/YOLO基础架构+工业数据Fine-tune，每个工位独立模型）+ 自然语言检索引擎（RAG：向量检索+大模型生成，覆盖技术文档领域）+ 供应链风险预测模型（多因子时序预测）+ 缺陷根因分析引擎（关联工艺参数与缺陷类型）'],
+['Agent编排层','质检异常分析Agent（检测到缺陷→自动分析关联工艺参数→生成根因假设）+ 研发助手Agent（自然语言检索+方案推荐+报告生成）+ 供应链预警Agent（多源数据融合→风险评分→预警推送）+ 报告生成Agent（日/周/月生产质量报告自动生成）'],
+['安全与审计层','所有AI决策可追溯（质检判定依据记录）+ 人工复核通道（安全件强制复核流程）+ 数据分级权限（研发数据分密级，最高机密不进AI）+ 供应商数据隔离（供应商Portal数据不与设计数据混用）+ 审计日志（符合IATF16949汽车质量管理体系要求）']
+]},
+{num:'04',title:'质检AI落地的关键：从辅助到自主的渐进路径',type:'prose',content:`<p>研发制造场景决策风险极高，质检漏检可能导致召回，错误的供应链判断可能导致停产。因此落地路径必须严格遵循"辅助→半自动→自主"三阶段，绝不能跳步。</p><p><b>辅助阶段（0-6个月）</b>：AI做检测，人工做决定。目标是建立"AI vs人工"的比对数据，校验AI准确率，同时让质检员熟悉工具、建立信任。质检员的反馈（标注AI误判/漏判）是最宝贵的训练数据。关键指标：AI推荐与人工一致率>85%（才有继续推进的基础）。</p><p><b>半自动阶段（6-12个月）</b>：外观缺陷（低风险）允许AI自主判定，安全相关件（高风险，如制动/转向/安全气囊）仍强制人工确认。处理量：AI自主处理约60%缺陷判定，人工聚焦剩余40%复杂/安全件。关键里程碑：AI自主判定的外观缺陷，误判率<0.3%（月度验证）。</p><p><b>自动化阶段（12个月+）</b>：基于验证数据逐步扩大自动化范围，但始终保留人工复核通道。安全件永久不进入全自动——这是法规要求，也是伦理底线。目标：AI处理80%以上缺陷判定，人工聚焦安全件审核和边界案例。</p><p><b>工程师信任建立</b>：研发人员对AI有天然怀疑态度。关键策略：让AI的决策可解释（"判定不合格因为检测到左前翼子板有0.8mm划痕，位于A区域，超过0.5mm标准"），而不是黑盒输出"不合格"。可解释性是研发场景AI落地最重要的产品设计原则之一。</p>`},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-6个月',title:'质检视觉试点+知识库建库',desc:'选择1-2条产线试点质检视觉系统（优先选外观涂装工位，风险较低），与人工并行运行，积累对比数据。同步启动研发知识库建库工程（文档收集+分类+向量化），这是最长的基础工作，早开始早受益。关键里程碑：试点工位AI推荐准确率>88%，知识库收录文档>5000份，检索满意度>70%。'},
+{phase:'Phase 2 · 6-12个月',title:'质检自动化扩展+供应链预警V1',desc:'试点工位验证通过后，扩展到更多外观检测工位，允许外观缺陷AI自主判定。供应链风险预警V1上线（规则驱动：交期履约率<92%直接预警，无需AI）。研发知识库向全研发团队开放，统计使用数据。仿真辅助基础功能（自然语言查询仿真结果）上线。'},
+{phase:'Phase 3 · 12个月+',title:'全流程智能化+预测性质量管理',desc:'质检覆盖率扩展到>80%工位，实现缺陷自动化处理率>70%。供应链风险预测ML模型上线（替代规则模型，提前量>60天）。研发知识库加入生成式能力（不只是检索，可以辅助写初稿报告）。建立"缺陷数据→工艺改进"闭环：质检AI识别到某类缺陷频率上升，自动关联工艺参数变化，辅助工艺工程师找到根因。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'质检漏检率',target:'< 0.1%（安全件 < 0.01%）'},{name:'质检效率',target:'全检速度 < 8分钟/辆（人工30分钟）'},
+{name:'供应链预警提前量',target:'> 60天（vs当前事后应急）'},{name:'知识库检索满意度',target:'> 80%（工程师评分）'},
+{name:'仿真周期缩短',target:'> 30%（AI辅助减少试错次数）'},{name:'工程师效率提升',target:'> 25%（报告和检索节省时间）'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'安全法规',text:'制动/转向/安全气囊/燃油系统等安全件质检，AI只做辅助检测，最终合格证必须由认证质检员人工签字确认——这是法规底线，不可因效率突破'},
+{type:'warn',label:'数据安全',text:'研发数据是企业核心竞争力，知识库必须实施严格权限分级（最高密级数据不得进入AI系统），防止通过AI渗透获取竞争对手设计方案'},
+{type:'warn',label:'系统集成',text:'与PLM/MES/ERP系统集成是最大工程难点：这些系统普遍有10-20年历史，接口文档不完整，集成周期容易超预期2-3倍，需按系统逐一评估'},
+{type:'info',label:'组织',text:'研发人员对AI持天然怀疑态度：必须先找愿意尝鲜的工程师作为种子用户，用具体成功案例扩散，不能强制推广'},
+{type:'ok',  label:'机会',text:'质检缺陷数据×工艺参数关联分析，可输出"导致缺陷的关键工艺参数"洞察，直接指导产线工艺优化，是质检AI超越"发现问题"进入"解决问题"的升华'}
+]}
+],related:['fleet','aftersales']},
+
+mobility:{cat:'ind',catLabel:'产业服务',title:'出行服务 Agent',
+subtitle:'让网约车、代驾、拼车平台的调度更智能、司乘体验更好、平台运营成本更低。从"人工调度+简单算法"升级到"多Agent协同的智能出行操作系统"。',
+sections:[
+{num:'01',title:'调度智能化系统',type:'steps',steps:[
+'<b>需求预测与运力前置</b>：基于历史数据、当前时间、天气、周边活动/演出/商圈状态，提前30-60分钟预测热点区域出行需求。自动向附近司机推送"前往XX区域接单概率更高"的建议（主动引导运力），将运力从供给侧主动引导到需求侧，减少乘客等待时间。',
+'<b>智能派单</b>：派单不只是"就近原则"，综合考量：距离（主因）+ 司机历史完单率（可靠性）+ 车型匹配 + 乘客历史偏好（固定地点/安静偏好/有宠物等）+ 当前供需状态。响应时间<200ms，每秒处理10,000+派单请求。',
+'<b>动态定价</b>：供需实时失衡时触发动态加价（溢价倍数1.2-2.5x，超过1.5x需向乘客明确提示）；预测性加价（提前识别即将供不应求的区域）；乘客可选择"等待正常价格"并接受预约排队。合规要求：涨幅不得超出监管上限，重大节假日/灾害天气价格保护。',
+'<b>拼车路线优化</b>：多个拼车订单合并时，动态规划途经顺序，在最小化绕路的同时满足各乘客时间要求（超出预计到达5分钟则不拼单）。实时重算：中途有新订单插入时重新评估是否接入当前拼车组。',
+'<b>司机运营Agent</b>：基于历史接单数据和当前供需，给出个性化接单建议——"现在去南站附近，预计接3-4单，收入约80元，比留原地预期高35%"；实时热力图推送；月度收入分析报告（与同类司机对比），帮助司机提升收入，提高平台留存率。'
+]},
+{num:'02',title:'技术架构',type:'arch',rows:[
+['实时计算','分布式流处理平台（处理每秒百万级GPS点+订单事件）+ 内存计算集群（毫秒级调度决策）+ 地理空间索引（快速查找周边司机/乘客）'],
+['预测系统','时序预测模型（需求预测，XGBoost+LSTM）+ 行程时间预测ETA（结合实时路况）+ 取消率预测（识别可能取消的订单，提前补充）'],
+['定价引擎','供需实时计算 + 弹性定价模型（价格弹性曲线）+ 合规检查（监管价格上限）+ A/B测试框架（持续优化定价策略）'],
+['安全系统','行程轨迹偏离检测（实时与规划路线比对）+ 紧急求助接入（一键报警→平台安全+公安系统）+ 异常停留检测 + 司机身份核验（人脸识别上线打卡）']
+]},
+{num:'03',title:'司乘体验Agent',type:'prose',content:`<p><b>乘客侧</b>：上车前根据历史记录预填常用目的地（减少输入摩擦）；行程中主动推送精准到达时间（每2分钟更新，误差<2分钟）；下车后自动评价（4星以上静默完成，3星以下才需手动选择原因）；异常体验（绕路/车内异味）行程结束后主动询问，不强迫但主动关心。</p><p><b>司机侧</b>：提升平台留存率的核心抓手。好的Agent让司机每天多接2-3单、少开10公里空驶，月收入差异可达800-1500元——这是远比补贴更持久的留存手段。具体功能：接单建议（去哪里概率更高）、实时热力图、收入日报（今天完成了多少、比平均水平高/低多少）。</p><p><b>安全合规</b>：实时监控轨迹偏离（偏离500m以上触发安全电话）；乘客可分享行程给紧急联系人；司机资质到期提前30天提醒；运营数据自动生成合规报告，满足地方主管部门数据上报要求。</p>`},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'调度效率优化',desc:'升级派单算法，引入多维度评分（不只是距离）。需求预测模型上线，运力前置建议推送给司机。ETA准确率优化，乘客满意度提升。'},
+{phase:'Phase 2 · 3-8个月',title:'动态定价与司机运营',desc:'动态定价系统上线（需通过监管审批）。司机运营Agent上线（收入建议/热力图）。拼车路线优化算法升级。安全实时监控系统全量上线。'},
+{phase:'Phase 3 · 8个月+',title:'生态协同与数据变现',desc:'与充电Agent联动（电动网约车充电规划）。与地图/POI数据联动，识别出行目的地趋势用于商业分析。探索出行数据（脱敏）向城市规划/商业地产提供洞察服务。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'乘客平均等待时间',target:'< 3分钟（高峰<5分钟）'},{name:'司机空驶率下降',target:'> 15%'},
+{name:'ETA准确率（误差<2min）',target:'> 85%'},{name:'司机月均收入提升',target:'> 8%'},
+{name:'乘客取消率下降',target:'> 20%'},{name:'安全事件响应时间',target:'< 30秒'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'合规',text:'动态定价受各地交通主管部门严格监管，价格上限和涨价触发条件需在上线前完成报备，不同城市规则不同'},
+{type:'warn',label:'合规',text:'乘客行程数据（起终点/时间规律）属于高度敏感个人信息，不得用于广告精准投放，需严格隔离商业化使用'},
+{type:'warn',label:'法律',text:'司机与平台的劳动关系认定在各地有不同判例，灵活用工模式面临法律风险，算法派单制度需经劳动法律师审查'},
+{type:'info',label:'运营',text:'需求预测模型在新城市冷启动时准确率低，建议用简单规则（历史均值）打底，积累3个月数据后才切换ML模型'}
+]}
+],related:['charging','safety']},
+
+usedcar:{cat:'sales',catLabel:'销售服务',title:'二手车评估 Agent',
+subtitle:'把二手车交易中最不透明的环节——定价和车况评估——用AI标准化。让买家告别"买猫换狗"的信息不对称，让卖家告别"经销商压价"的被动局面，让整车厂置换业务转化率提升30%以上。',
+sections:[
+{num:'01',title:'产品定位：破解二手车市场最大痛点',type:'prose',content:`<p>二手车市场年交易量超过1500万辆，但车况不透明和定价不透明是两大核心痛点：买家不知道车是否有重大事故/泡水/火烧史，卖家在4S店置换时往往被压价20-30%。这两个痛点的本质都是<b>信息不对称</b>——AI是打破信息不对称最有力的工具。</p><p><b>整车厂置换场景的核心价值</b>：车主在4S店以旧换新是最高频的购车置换路径。置换流程不顺畅（等待估值、来回砍价），直接导致潜在成交失败。AI估值Agent让置换估值从"2-3天等待结果"变成"现场10分钟出报告"，置换成交率可提升25-35%，同时整车厂获得高质量的二手车源用于认证二手车业务。</p><p><b>C2B/C2C平台场景</b>：瓜子、优信、天猫养车等平台，AI评估可降低人工检车成本60-70%（100+项人工检车→AI辅助+10项人工确认），并提升评估标准一致性（同一辆车不同检测员差价可达1-2万元）。</p><p><b>金融机构场景</b>：汽车金融公司对二手车抵押贷款的抵押物评估，AI提供客观估值参考，降低贷款抵押物价值虚高的风险。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>一键车况报告（车主自检版）</b>：车主使用App，按引导拍摄60+张标准化照片（含车身各面/发动机仓/底盘/内饰/仪表盘/轮胎）+ 上传行驶证和保养记录。AI自动分析：① 外观损伤识别（划痕深度/钣金修复迹象/原厂漆vs补漆，通过纹理分析和反光检测）；② 内饰磨损评级（座椅/方向盘/中控面板，按成色1-10分）；③ 里程合理性验证（仪表盘数字+保养记录+车型常见行驶规律三角核验，识别调表嫌疑）；④ 车况健康分（综合100分）。报告10分钟内生成，车主可直接分享给购车方或使用于置换。',
+'<b>AI智能估值引擎</b>：估值不是拍脑袋，是多维度数据模型。输入：车型（品牌/车系/年款/排量/配置级别）+ 里程 + 车况健康分 + 所在城市（地域差异影响可达20%）+ 历史事故记录（接入保险理赔数据库查询，需车主授权）+ 本地近30天同类型成交价。模型训练数据：全国二手车平台脱敏成交数据（500万+条/年）。输出：区间估值（C端买家参考价/B端批发价/平台收购价三个维度，清晰区分）+价格影响因子分析（"里程偏高，影响估值-8000元；保养记录完整，影响估值+5000元"）+95%置信区间（展示估值的确定性）。',
+'<b>事故/泡水/火烧历史核查</b>：接入三类数据源：① 保险公司出险记录（需车主授权查询，覆盖投保出险历史）；② 维修记录数据库（授权维修厂数据共享，识别结构件维修记录）；③ AI图像分析（底盘锈蚀图像分析识别泡水迹象；焊点检查识别结构件更换；油漆膜厚分析需配合专业设备）。核查报告输出4类结论：无异常/疑似小事故/重大事故记录/检测风险（需专业进一步核查）。所有结论标注数据来源和置信度，不过度承诺（"根据可查数据，未见重大出险记录"而非"保证无事故"）。',
+'<b>置换流程全数字化</b>：车主App完成初步估值后，预约4S店检测（精选5家就近网点+实时档期）。检测当天：技师用平板完成12项核心检测（10分钟），检测结果实时同步估值引擎（修正最终报价）。置换合同数字化签署（电子签，法律效力等同纸质）。旧车处置路径推荐：① 优先进入品牌认证二手车库（溢价约5-8%）；② 对接第三方平台批量收购（有基准价，防压价）；③ 保留车主自主挂牌选项（估值报告作为定价参考）。全程状态推送：车主随时知道旧车在哪个处置环节。',
+'<b>认证二手车管理平台（B端）</b>：面向整车厂或经销商集团的后台工具。批量车辆录入和自动估值（对接收购系统，进场车辆自动估值入库）。车况标准化报告生成（每辆认证二手车生成标准化报告，面向终端买家透明展示）。动态定价建议（根据库存周转速度和市场行情，每周更新建议零售价）。收购价格合规监控（防止采购员接受不合理低价或高价，保护公司利益）。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['图像分析层','车身损伤检测模型（基于200万+标注二手车图片，覆盖划痕/凹陷/锈蚀/补漆/玻璃裂纹6类损伤）+ 油漆成新度分析（颜色一致性+纹理分析）+ 内饰磨损分级（12个内饰区域独立评分）+ 底盘锈蚀分析（泡水识别重点区域，配合引导式拍摄角度）+ OCR识别（行驶证/保养本关键信息提取）'],
+['数据融合层','车型残值数据库（全国200+城市×5000+车型×月度残值率，每月更新）+ 保险出险数据API（中国银保信平台，需授权查询）+ 二手车交易行情数据（主流平台脱敏成交数据，500万+条/年）+ 维修记录数据库（授权维修厂上报数据）+ 里程合理性模型（车型×年龄×城市的里程分布统计）'],
+['估值计算层','多因子估值模型（XGBoost：车型×里程×车况×地区×时间，特征200+个）+ 置信区间计算（量化估值不确定性）+ 价格影响因子拆解（Shapley值解释各因子贡献）+ 价格区间动态校准（每周更新，跟踪市场行情变化）'],
+['流程管理层','检测任务调度系统（技师排班+任务分配）+ 电子合同引擎（腾讯电子签/法大大对接，具备法律效力）+ 库存管理系统（认证二手车全生命周期管理）+ 动态定价引擎（库存周转率×市场行情×毛利目标三方平衡）'],
+['安全与合规层','车主数据授权链（明确授权查询出险记录，授权范围最小化）+ 估值免责声明标准化（"参考价格，非承诺价格"）+ 经销商操作审计（防止人工篡改AI估值结论）+ 数据保留策略（车主车况照片按法规保留周期管理）']
+]},
+{num:'04',title:'竞品对标',type:'bench',items:[
+{who:'瓜子二手车',what:'自营C2C平台，线下检测为主，200+项人工检测，品质认证体系成熟。弱点：检测成本高（每辆约600-900元人工成本），异地交易体验差，估值主观性强（检测师经验差异导致报价差异大）。'},
+{who:'天猫养车',what:'依托阿里生态，线上化程度高，强调价格透明。但估值体系依赖外部数据，车况核查深度不足，主要覆盖低端市场（5万以下车型优势明显，高端车型信心不足）。'},
+{who:'懂车帝',what:'流量入口型平台，以信息撮合为主，不参与实物交易。估值工具以市场行情查询为主，不具备AI车况检测能力，是潜在合作方而非竞争对手。'},
+{who:'特斯拉官方置换',what:'在线提交车辆信息+AI初步估值，线下确认，闭环效率高，用户体验优。仅限特斯拉官方回购，场景局限，但用户体验是行业标杆。'},
+{who:'差异化机会',what:'OEM认证二手车场景：整车厂品牌背书+AI标准化评估+认证体系，形成"瓜子有品质但价格不透明→我们品质+价格都透明"的竞争定位，溢价能力更强。'}
+]},
+{num:'05',title:'ROI量化',type:'roi',items:[
+{label:'置换业务提升',value:'成交率+30%',note:'估值周期从2-3天降至10分钟，减少用户放弃置换概率'},
+{label:'人工检测降本',value:'成本降低60%',note:'100项人工检测→AI辅助+10项核心人工，每辆节省约400元'},
+{label:'认证二手车溢价',value:'溢价5-8%',note:'标准化品质报告增强买家信心，减少议价空间'},
+{label:'欺诈车辆拦截',value:'减少损失约1200万/年',note:'以年收购1万辆、1%欺诈率、单辆欺诈损失12万估算'}
+]},
+{num:'06',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'车况AI检测MVP上线',desc:'App端引导式拍照（60张标准图），AI生成外观损伤报告和健康分。接入市场行情数据，上线参考估值区间（初期仅支持TOP20热销车型）。4S店置换预约流程数字化。关键里程碑：置换用户估值满意度>75%，估值准确率（与最终成交价偏差<15%）>80%。'},
+{phase:'Phase 2 · 3-8个月',title:'数据打通与认证平台',desc:'接入保险出险查询数据（API打通中国银保信）。估值模型扩展至200+主流车型。认证二手车管理后台上线（经销商集团使用）。里程合理性核查功能上线。电子合同签署全流程上线。关键里程碑：估值准确率>90%，置换成交转化率同比提升>25%。'},
+{phase:'Phase 3 · 8个月+',title:'生态扩展与金融联动',desc:'对接汽车金融公司，AI估值报告作为抵押贷款评估参考。认证二手车在线交易平台（C2C带品牌背书）。与售后Agent打通：车主保养数据直接进入二手车估值模型（数据闭环）。探索区块链存证：车辆关键节点数据（生产/维修/保养/出险）上链存证，构建不可篡改的车辆档案，成为二手车交易最强信任背书。'}
+]},
+{num:'07',title:'核心成功指标',type:'metrics',items:[
+{name:'AI估值准确率（偏差<15%）',target:'> 90%（对比最终成交价）'},{name:'车况报告生成时间',target:'< 10分钟（用户提交后）'},
+{name:'置换成交转化率',target:'提升 > 25%（vs人工估值流程）'},{name:'欺诈车辆识别率',target:'> 80%（重大事故/泡水/调表）'},
+{name:'经销商采购价合规率',target:'> 95%（防人工干预偏离AI估值）'},{name:'认证二手车库存周转天数',target:'< 45天（vs行业均值90天）'}
+]},
+{num:'08',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'高危',text:'估值结论被用户视为"承诺价格"，若最终成交价与估值偏差>20%，用户会投诉。必须在产品界面明确标注"参考价格区间，受车况核查和市场变化影响"，并在法律条款中明确免责'},
+{type:'warn',label:'数据',text:'出险记录查询需车主明确授权，且中国银保信数据接入需主管部门审批，是最长的前置准备工作（预计3-6个月商务谈判期）'},
+{type:'warn',label:'技术',text:'高端车（豪华品牌/稀有车型）样本量少，估值模型准确率显著下降，建议初期限制在20万以下普通车型，高端车型采用人工估值辅助AI'},
+{type:'info',label:'运营',text:'检测师角色转型：从"给出最终报价的权威"变为"辅助确认AI结论的核验员"，需要做好内部培训和激励体系调整，防止检测师抵制AI工具'},
+{type:'ok',  label:'机会',text:'车辆全生命周期档案是巨大数据资产：从新车出厂→维修保养→二手交易，积累的数据形成行业最全面的车辆价值预测模型，这是传统平台无法复制的OEM独特优势'}
+]}
+],related:['aftersales','sales','insurance']},
+
+recall:{cat:'ops',catLabel:'运营管理',title:'召回管理 Agent',
+subtitle:'把召回从"被动应急"变成"主动预防"。在监管要求启动召回之前，提前3-6个月识别批次性缺陷信号，把一次大规模召回变成主动预防性服务通知，将召回成本降低50%+，并将舆论危机转化为品牌信任机会。',
+sections:[
+{num:'01',title:'产品定位：主动预防远优于被动响应',type:'prose',content:`<p>汽车召回是车企最高风险事件之一。一次重大召回不仅有直接财务损失（单辆维修成本×召回数量+运营成本），更有舆论危机（媒体报道、股价下跌）和长期品牌伤害（消费者信心下降）。</p><p><b>召回管理的三个阶段</b>：① <b>被动型</b>（行业现状）：积累大量投诉/事故后，被监管要求启动调查，再发布召回公告，从信号出现到召回执行平均12-18个月；② <b>响应型</b>：内部质量体系发现问题后主动申请召回，避免监管干预，速度快3-6个月，主动性更好；③ <b>预防型</b>（AI目标）：在批次性缺陷造成用户感知之前，从数据中识别早期信号，主动联系用户进行"预防性服务"，彻底避免召回舆论危机，成本最低、品牌价值最高。</p><p><b>战略价值量化</b>（以10万辆规模召回为例）：传统被动召回，每辆成本约5000元（维修+物流+人员+公关），总成本5亿元。主动预防性服务（召回前发现），零件成本+主动预约维修，每辆约2000元，总成本2亿元，节省3亿元。品牌价值：主动告知用户"我们提前为您检查了XX部件"，与"因媒体曝光不得不召回"，用户感知天壤之别。</p>`},
+{num:'02',title:'全流程Agent功能拆解',type:'steps',steps:[
+'<b>多源缺陷信号监控</b>：7类数据源实时扫描：① 车联网异常故障码（特定批次车辆的相同故障码频率异常上升，如某批次车辆触发P0300故障码的频率比正常高5倍）；② 售后维修工单（同类型维修在特定批次/生产日期集中出现）；③ 用户投诉语义分析（App/客服热线投诉文本，NLP识别"刹车异响""方向盘抖动"等关键词聚类）；④ 社交媒体监控（微博/小红书/汽车之家/懂车帝负面评价的关键词和车型标签）；⑤ 保险理赔数据（相同零件相同失效模式的理赔集中）；⑥ 4S店技师反馈（专业端的早期发现渠道）；⑦ 零部件供应商质量数据（特定批次零件的合格率异常）。任何一源出现统计显著异常，触发预警工单进入审查流程。',
+'<b>统计显著性分析与定位</b>：触发预警后，召回分析Agent自动执行：① 时间聚类（异常是否集中在特定生产日期/VIN批次范围？）；② 地理聚类（是否集中在特定气候/道路条件地区，区分真正缺陷vs用户使用差异）；③ 里程分布（在什么行驶里程集中出现？可推断零件设计寿命问题）；④ 严重程度评估（涉及安全件：制动/转向/燃油/安全气囊，立即升级为P0紧急处理）；⑤ 受影响车辆定位（基于VIN批次范围，精确圈定受影响车辆数量）。输出：缺陷预警报告，包含统计置信度（>95%才升级为正式调查）、受影响批次、严重程度分级，推送给品质部门负责人。',
+'<b>主动服务通知（召回执行）</b>：一旦确认需要召回/服务活动，Agent接管整个用户触达流程：① 受影响车辆列表（基于VIN批次，精确到每一辆）；② 多渠道通知（App Push+短信+车机消息+挂号信，法规要求必须有挂号信）；③ 通知内容个性化（说清楚什么问题、影响是什么、解决方案是什么、怎么预约、多长时间、费用如何）；④ 自动预约系统（用户收到通知后一键预约就近4S店，时间档期实时展示）；⑤ 进度跟踪（实时看板：通知发送率/预约率/维修完成率/未响应用户追踪）。合规要求：《缺陷汽车产品召回管理条例》规定召回通知必须在公告发布后5个工作日内送达所有受影响用户，Agent自动确保合规达成。',
+'<b>召回进度管理与合规报告</b>：实时进度看板：通知成功送达率（目标>95%）、用户预约率（目标>80%，30天内）、维修完成率（目标>85%，60天内）。未响应用户自动跟进：第一次通知7天未预约→二次通知；14天未预约→电话人工跟进；30天未预约→标记为"需重点处理"。合规报告自动生成：按市场监管总局要求格式，自动汇总召回进展（每月上报）。若实际召回率低于监管要求下限，自动预警并生成专项改进计划。',
+'<b>根因追溯与改进闭环</b>：召回完成后，Agent自动生成根因分析报告：① 缺陷首次出现的生产节点；② 质检哪个环节未检出；③ 设计端还是制造端问题；④ 供应商零件质量是否是原因。将根因报告推送至：设计部门（触发设计变更评审）、供应商管理部门（触发供应商整改评审）、质检部门（触发质检规程更新）。真正建立"发现问题→追溯根因→改进系统"的闭环，而不只是解决当次召回。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['多源数据采集层','车联网故障码实时流（100ms上报，亿级数据点/天）+ 维修工单结构化数据（工单完成后30分钟入库）+ 投诉文本ETL管道（7×24实时处理）+ 社交媒体爬虫（微博/小红书/汽车之家/懂车帝，30分钟更新频率）+ 供应商质量数据API（PPM值/批次合格率）+ 保险理赔数据（授权接入，每日同步）'],
+['异常检测引擎','时序异常检测（每车型每故障码的历史基线建立，Sigma检验：>3σ触发预警）+ 空间聚类分析（地理维度，Moran指数识别地区聚集）+ NLP语义分析（投诉文本的缺陷关键词提取+严重性分类+车型归因）+ 关联规则分析（不同数据源的缺陷信号交叉印证，减少单源误报）+ 贝叶斯更新（随新数据持续更新风险概率）'],
+['决策分析层','受影响批次定位算法（VIN批次范围精确圈定）+ 严重性分级决策树（安全件P0/功能件P1/舒适件P2，不同响应速度）+ 统计置信度计算（Bootstrap采样估计，>95%才升级为正式调查）+ 成本收益分析模型（主动召回vs被动召回的量化对比，辅助管理层决策）'],
+['用户触达层','多渠道通知引擎（App/SMS/车机/快递，按优先级和合规要求编排）+ 预约调度系统（就近4S店+实时档期+自动工单创建）+ 进度实时追踪看板（分级：VIN级/区域级/品牌级）+ 未响应用户升级处理流程（规则引擎自动触发二次三次跟进）'],
+['合规与审计层','全自动监管报告生成（按市场监管总局NRCA格式）+ 通知记录存档（每封通知的发送时间/渠道/状态可追溯，满足法律举证要求）+ 内外部信息管控（召回信息分级管控，防提前泄露导致市场恐慌）+ 法务审核工作流（召回公告发布前法务必须在系统内签批）']
+]},
+{num:'04',title:'OTA远程修复：软件问题无需召回到店',type:'prose',content:`<p>传统召回的最大成本在于"车主必须到店"——预约、等待、维修，每辆车的物流和人工成本约2000-5000元，用户体验差，完成率低。但随着新能源汽车软件定义比例大幅提升，越来越多的"缺陷"实际上是软件Bug，可以通过OTA（空中下载更新）直接修复，无需到店。</p><p><b>OTA可解决的问题类型</b>：ADAS功能逻辑错误（如特定场景下的误刹车）、车机系统Bug（死机/黑屏/功能失效）、电池管理策略问题（导致续航异常下降但电芯本身无损）、仪器仪表显示错误、软件控制的车身电子功能（如自动泊车的边界条件判断错误）。这类问题以往也需要召回到店，现在可以"静默推送"修复。</p><p><b>OTA与传统召回的体验对比</b>：OTA修复——用户收到通知"已自动修复XX问题，本次更新在您停车时完成，无需任何操作"，用户体验极好，完成率接近100%，成本约传统召回的5%；传统到店召回——用户需要预约、等待2-4小时，完成率约85%，成本高，品牌形象负面。</p><p><b>Agent的角色</b>：① 自动识别"可OTA修复"vs"必须到店修复"的问题分类（安全相关硬件缺陷必须到店，软件问题优先OTA）；② 触发OTA更新包的分批推送（按场景一节所述的灰度策略）；③ OTA完成率监控（强制更新场景下，逾期未完成的车辆主动提醒）；④ OTA修复效果验证（更新后该故障码的发生率是否下降，自动生成修复效果报告）。</p><p><b>法规合规要求</b>：工信部2022年发布的《关于加强智能网联汽车生产企业及产品准入管理的意见》对OTA更新有明确要求：① 影响行驶安全的OTA必须向监管部门备案（7个工作日内）；② OTA更新日志必须保留，可供监管查询；③ 用户必须有权拒绝非强制性OTA更新。Agent自动处理合规备案文件生成和提交流程。</p>`},
+{num:'05',title:'ROI量化',type:'roi',items:[
+{label:'召回执行成本',value:'降低50%+',note:'主动预防性服务（2000元/辆）vs 被动召回（5000元/辆），10万辆规模节省3亿元'},
+{label:'品牌危机规避',value:'无价',note:'主动告知 vs 媒体曝光后被动应对，用户信任度差异显著影响长期购买意愿'},
+{label:'合规效率',value:'节省80%人力',note:'监管报告自动生成，100%格式合规，从1周手动整理→当天自动生成'},
+{label:'预警提前量',value:'提前3-6个月',note:'从信号出现到发现，传统12-18个月，AI系统1-2个月，留出足够处置时间'}
+]},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'数据接入与异常监控可视化',desc:'车联网故障码数据接入，建立每车型每故障码的历史基线。投诉文本语义分析上线（NLP关键词提取）。异常监控看板上线（可视化，不自动预警，人工每日巡检）。召回进度管理数字化（替代Excel，实时追踪通知率/预约率/维修率）。合规报告自动生成（减少合规团队工作量70%）。'},
+{phase:'Phase 2 · 4-10个月',title:'智能预警与主动服务通知',desc:'统计显著性检测模型上线，自动生成预警工单推送给品质团队。多源数据交叉印证上线（减少单源误报）。主动服务通知系统全量上线（多渠道触达+自动预约）。未响应用户自动跟进流程上线。典型案例验证：选择3-5个历史召回案例复盘，验证AI系统提前发现的能力（回测验证）。'},
+{phase:'Phase 3 · 10个月+',title:'根因闭环与供应商联动',desc:'根因分析模块与设计/供应商系统打通，实现问题→根因→改进的系统闭环。供应商批次质量数据实时接入，将预警提前到零件到厂阶段（在缺陷零件装车前就发现）。行业数据共享探索（脱敏后与行业组织共享，提升全行业预警能力，同时建立监管信任）。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'缺陷预警提前量',target:'> 3个月（vs人工发现）'},{name:'召回通知达成率',target:'> 95%（法规要求）'},
+{name:'用户预约率（30天内）',target:'> 80%'},{name:'召回维修完成率（60天内）',target:'> 85%'},
+{name:'合规报告自动化',target:'100%格式合规，当天生成'},{name:'根因闭环覆盖率',target:'> 90%（正式召回案例）'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'最高危',text:'召回信息属于高度敏感信息：信息提前泄露（内部系统漏洞/供应商知情）可能引发媒体报道、股价异动、监管追问。必须实施严格的信息分级管控，知情范围限制到最小必要人员，系统内部实施"need-to-know"访问控制'},
+{type:'warn',label:'法律',text:'《缺陷汽车产品召回管理条例》规定详细的召回程序和时效，违反规定面临最高10%年度销售额的罚款。法务团队必须全程参与，AI系统的召回决策建议只能作为辅助，最终决策须由管理层和法务确认'},
+{type:'warn',label:'系统集成',text:'车联网数据只能覆盖已联网车辆（通常占在役车辆50-70%），老款非联网车型的召回预警能力受限，需要补充维修工单和投诉数据作为信号来源'},
+{type:'info',label:'运营',text:'品质部门的角色转变：从"收到投诉再处理"变成"主动看数据发现问题"，需要团队建立数据分析习惯，定期review预警看板'},
+{type:'ok',  label:'机会',text:'主动召回的监管加分：市场监管总局对企业主动上报召回的态度明显更积极，主动召回企业的后续合规审查压力更小，监管关系改善有长期战略价值'}
+]}
+],related:['aftersales','rd','safety']},
+
+compliance:{cat:'ops',catLabel:'运营管理',title:'合规数据治理 Agent',
+subtitle:'把散落在各系统的数据安全与合规工作自动化。这是所有Agent场景的横切基础——没有扎实的数据治理，任何AI落地都面临法律和监管风险。合规Agent确保每个AI决策都可追溯、数据使用都有授权、监管报告都自动生成。',
+sections:[
+{num:'01',title:'产品定位：所有Agent的安全底座',type:'prose',content:`<p>汽车行业的数据生态极其复杂：车联网采集大量驾驶数据（位置/行为/习惯），AI系统处理用户人脸/声音/生物特征，研发数据是企业核心竞争力，供应链数据涉及多方商业秘密。在这样的背景下，没有系统性的数据治理，每一个AI Agent的上线都在积累法律风险。</p><p><b>监管压力清单（2023-2025新增规定）</b>：《汽车数据安全管理若干规定》（工信部）——座舱摄像头、车外摄像头数据的采集范围和传输规范；《个人信息保护法》——人脸等敏感生物识别信息须单独授权；《数据安全法》——重要数据和核心数据分级管理，出境评估；IATF 16949——制造质量数据的保留和可追溯要求；GDPR（欧洲出口业务）——数据最小化、被遗忘权、数据出境SCC协议。任何一条违反，罚款从几十万到营业额5%不等，部分违规还有刑事责任。</p><p><b>合规Agent的核心价值</b>：把上述监管要求的合规工作从"人工周期性审查"变成"系统实时监控+自动预警+自动报告生成"，将合规成本降低60%以上，同时将合规覆盖率从抽样提升至全量。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>数据资产分类分级（最基础工作）</b>：自动扫描全公司数据资产，按敏感度分4级：L1公开数据（产品手册/市场材料）；L2内部数据（运营数据/非个人信息的生产数据）；L3敏感数据（用户个人信息/财务数据/研发设计数据）；L4核心数据（安全件设计方案/未公开专利/量产密级工艺）。对L3/L4数据：标注数据所有者、使用场景许可清单、保留期限、销毁策略。AI自动扫描数据库和文件存储，识别未分级的新增数据并推送给数据管理员确认，实现数据资产的持续动态盘点。',
+'<b>用户授权管理平台</b>：统一管理所有AI功能涉及的用户数据授权。每类数据使用对应独立授权颗粒度（DMS摄像头授权≠行驶轨迹授权≠通讯录授权）。授权状态实时可见：任意用户的当前授权清单，按功能和数据类型展示。撤回授权自动联动：用户在App撤回DMS授权，系统自动停用该用户车辆的DMS功能，并从AI训练数据中删除该用户相关数据（RTBF功能）。授权审计日志：每次授权更改都记录时间/渠道/用户操作，监管查询时可完整提供。',
+'<b>AI决策可追溯系统</b>：每个Agent的决策都必须生成"决策日志"——时间、输入数据、使用的模型版本、输出结论、置信度、关联的用户授权依据。安全件质检判定：记录"某VIN车辆某工位判定不合格，原因：左前车门焊点检测到1.2mm气孔，超出0.8mm标准，使用模型版本v2.3.1，判定时间xx:xx:xx"。保险理赔AI定损：记录"照片分析，识别到前保险杠中度损伤，参考价格区间xx-xx元，置信度87%，图像来源照片序号3/7/12"。审计要求：所有决策日志保留5年，支持按案件/用户/时间范围检索。',
+'<b>数据跨境合规管理</b>：汽车数据出境是监管重点（网联汽车在中国境内采集的数据，原则上不得出境）。Agent自动监控数据流向：识别哪些数据在境内处理、哪些存储或处理在境外。敏感数据出境评估自动化：收集境外数据使用场景→生成评估问卷→分级审核（L3敏感数据需DPIA，L4核心数据原则上不出境）→存档评估结论。供应商数据安全评估：与境外供应商/云服务商的数据共享协议，自动生成标准化评估清单，覆盖数据存储地址、加密标准、访问控制、事件通知等。',
+'<b>监管报告自动生成</b>：汽车行业涉及多个监管机构的定期报告要求。Agent自动汇总数据，生成以下报告：① 个人信息保护年度报告（国家互联网信息办公室要求）；② 汽车数据安全年度报告（工信部要求）；③ 质量管理体系数据报告（IATF 16949审核）；④ 数据安全事件月报（若发生数据泄露事件，需在24小时内初报、72小时内详报）。所有报告采用标准化格式模板，数据自动填充，人工只需审核确认，生成时间从3-5天缩短到1天。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['数据发现与分类层','敏感数据自动扫描引擎（正则+ML：识别手机号/身份证/人脸/位置等PII格式）+ 数据血缘追踪（数据从产生→处理→存储→使用的全链路追踪）+ 元数据管理平台（每个数据资产的完整属性：owner/分级/保留期/使用场景）+ 实时新增数据监控（新建表/新增字段自动触发分级审核工作流）'],
+['授权管理层','统一授权管理平台（SSO集成，与App/车机/H5页面打通）+ 授权版本控制（每次版本更新的授权颗粒度变化完整记录）+ 被遗忘权执行引擎（用户申请删除→自动在所有系统定位并清除该用户数据→生成执行报告）+ 同意管理记录（每次授权弹窗的展示版本/时间/用户响应）'],
+['AI决策审计层','决策日志标准化格式（JSON schema，覆盖所有Agent类型）+ 日志集中存储（ClickHouse，亿级日志/月，查询响应<2秒）+ 异常决策检测（AI决策偏差监控，识别模型漂移导致的决策异常）+ 司法举证包生成（按法庭/监管要求格式，自动打包相关日志和数据）'],
+['合规监控层','数据跨境流量监控（网络层+应用层双监控）+ 监管要求变更追踪（法规数据库，自动推送新规要求和变化点）+ 合规评分实时看板（每个业务单元的合规健康度评分）+ 事件响应系统（数据泄露/系统入侵的标准化响应流程，确保72小时内合规报告）'],
+['报告生成层','监管报告模板库（国家互联网信息办公室/工信部/IATF格式标准化）+ 数据自动汇聚引擎（从各源头系统自动提取合规指标数据）+ 报告审核工作流（法务+CISO双重签批）+ 报告存档与版本管理（每次上报版本归档，可追溯历史版本）']
+]},
+{num:'04',title:'合规风险地图（汽车行业特有）',type:'prose',content:`<p>汽车行业AI合规有独特的风险点，与互联网行业有本质差异，需要特别关注：</p><p><b>① 座舱摄像头（DMS）数据</b>：采集人脸和眼部数据，属于生物识别敏感信息，须单独授权、端侧处理（原始图像不得上传云端）、特征值匿名化后才能用于模型训练。车外摄像头（行车记录仪上传）：超出必要范围的公共道路采集可能违反《汽车数据安全管理若干规定》第6条。</p><p><b>② 行驶轨迹数据</b>：被明确认定为"重要数据"，原则上不得出境。但研发、仿真、安全分析等业务有跨境需求，每次需经国家互联网信息办公室数据出境安全评估（周期约3-6个月）。</p><p><b>③ 研发数据与知识产权</b>：设计文件进入AI知识库，需评估：① 是否含有他人授权使用的知识产权内容；② 进入AI系统后是否存在供应商数据与竞争对手数据混用风险；③ AI生成的设计建议是否侵犯已有专利（AI辅助设计的专利归属问题尚无明确法规，建议法务提前建立内部规范）。</p><p><b>④ 劳动法与算法用工</b>：车队管理Agent的驾驶员行为评分若与绩效挂钩，需在劳动合同中明确约定，并依法保障劳动者对算法决策的知情权和申诉权。出行平台的动态定价算法对司机收入的影响，可能触发平台劳动关系认定风险。</p>`},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'数据资产盘点与分级',desc:'自动化数据扫描，完成全公司数据资产的敏感度分级。建立数据血缘追踪，可视化关键数据从产生到使用的全链路。DMS和轨迹数据的合规评估完成，输出整改建议。已有Agent决策的审计日志补齐（若有缺失）。关键里程碑：数据资产分级覆盖率>95%，合规风险优先级排序清单完成。'},
+{phase:'Phase 2 · 3-8个月',title:'授权管理平台与合规监控',desc:'统一授权管理平台上线，与App/车机全渠道打通。被遗忘权执行引擎上线，用户申请删除72小时内完成跨系统删除。数据跨境流量监控上线。AI决策审计日志标准化，覆盖所有已上线Agent。监管报告自动生成，覆盖年度个人信息保护报告和汽车数据安全报告。'},
+{phase:'Phase 3 · 8个月+',title:'持续合规监控与审计自动化',desc:'合规健康度实时看板上线，业务负责人可自助查看本业务合规状态。法规变更自动追踪，新规发布后自动评估对现有系统的影响并生成整改建议。第三方审计辅助系统上线（IATF/ISO 27001等认证审计时，Agent辅助生成所需证据包）。供应商数据安全管理纳入自动化评估体系。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'数据资产分级覆盖率',target:'> 95%（实时盘点）'},{name:'用户授权管理准确率',target:'100%（零遗漏）'},
+{name:'AI决策审计日志完整率',target:'> 99.9%（零缺失）'},{name:'监管报告生成时间',target:'< 1天（自动化）'},
+{name:'数据泄露事件响应时间',target:'< 24小时初报（法规要求）'},{name:'合规工作人力节省',target:'> 60%（vs人工方式）'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'最高优先',text:'《汽车数据安全管理规定》第6条：处理车外视频/图像等数据时，应当在提供汽车功能的必要范围内进行，且应当匿名化处理，无法实现的不得收集。违反者面临工信部行政处罚和整改要求'},
+{type:'warn',label:'法律',text:'数据出境未经安全评估：《数据安全法》第31条规定，关键信息基础设施运营者及处理重要数据的单位向境外提供数据须经安全评估，汽车轨迹数据属于重要数据，违规面临最高100万元罚款和暂停业务处置'},
+{type:'warn',label:'法律',text:'被遗忘权执行不完整：《个人信息保护法》第47条规定用户有权要求删除个人信息，若系统存在数据孤岛（某个子系统未接入统一删除引擎），将导致删除不完整，面临行政处罚'},
+{type:'info',label:'技术',text:'数据血缘追踪的技术复杂度极高：汽车企业普遍有20+套遗留系统，不同时代、不同技术栈，建立统一的数据血缘追踪需要2年以上工程时间，建议分系统、分优先级逐步推进'},
+{type:'ok',  label:'战略',text:'合规能力是出海的隐形护照：欧洲市场有GDPR，美国有CCPA，完善的数据治理体系是国内车企出海的核心合规能力，提前建设者享有竞争优势'}
+]}
+],related:['rd','fleet','recall']},
+
+pr:{cat:'ind',catLabel:'产业服务',title:'舆情口碑运营 Agent',
+subtitle:'在用户表达不满前就发现信号，在负面信息扩散前就介入处置，在沉默的满意用户中找到潜在KOC。让品牌从被动应对舆论变成主动引导口碑，把散乱的社交媒体数据变成有价值的市场洞察。',
+sections:[
+{num:'01',title:'产品定位：从被动灭火到主动经营口碑',type:'prose',content:`<p>汽车品牌的口碑形成路径发生了根本变化：传统广告（品牌说）→ 媒体测评（第三方说）→ 用户口碑（用户说）→ 算法推荐（平台决定谁能看到）。在这个链路中，OEM对前两环有掌控力，但对后两环越来越失控——一篇小红书爆文可以让竞争对手的某款车型在一周内涨价，一个微博热搜可以让一次质量事件演变为股价下跌。</p><p><b>汽车行业舆情的特殊性</b>：客单价高（购车决策被强烈的社交影响驱动，用户买前必看社区评价）；安全相关（安全事故/召回的舆论发酵速度比一般消费品快3-5倍）；内容专业化（懂车帝/汽车之家的测评是技术向的，需要专业人员应对技术质疑）；周期长（车主使用5-7年，舆论影响持续时间远超其他消费品）。</p><p><b>舆情Agent核心价值链</b>：① 全量覆盖（人工监控30%内容，AI覆盖100%）；② 实时响应（从发现到推送<15分钟，人工平均>4小时）；③ 洞察生成（从"什么人在说什么"到"为什么说、如何影响销售"）；④ 行动闭环（洞察推动产品改进和营销调整）。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>全渠道舆情监控（8大渠道）</b>：覆盖：微博（话题/超话/关键词）、小红书（笔记/评论）、抖音（视频标题/评论）、懂车帝（测评/论坛/评价）、汽车之家（论坛/文章/用户口碑）、微信（公众号文章+舆情工具采集）、知乎（问答/专栏）、B站（视频+弹幕/评论）。监控维度：品牌词+车型词+竞品词+行业关键词+创始人/高管名称。30分钟更新频率，危机关键词实时监控（<5分钟推送）。危机关键词列表：制动失效/车辆自燃/起火/失控/碰撞/人员伤亡/召回/质量门等，这类词出现立即触发P0级别告警推送到品牌VP和公关总监。',
+'<b>情感分析与议题识别</b>：三维情感分析：① 情感极性（正面/负面/中性，准确率>90%）；② 情感强度（弱/中/强，识别是轻微吐槽还是愤怒投诉）；③ 情感对象（针对品牌整体/具体车型/具体功能/经销商服务，而非笼统负面）。议题自动聚类：相似内容自动归并为议题，而非单条展示。用户不需要看1000条帖子，只需看"今天有3个主要议题：① 用户反映XX车型空调噪音问题（86条，负面率82%）；② KOL发布长测报告（2篇，综合正面）；③ 竞品YY降价事件导致的比价讨论（203条）"。议题优先级评分：基于内容量+情感强度+传播加速度+媒体级别综合计算，自动排序待处理优先级。',
+'<b>KOC/KOL识别与管理</b>：KOL（Key Opinion Leader）：粉丝数>10万，通常是汽车垂类博主/媒体人，有公关预算主动维护关系。KOC（Key Opinion Consumer）：真实车主，粉丝数1000-10万，内容真实可信度更高，是"信任转化"最有价值的群体。Agent自动从现有用户群体中识别：近90天有相关内容发布、互动率>5%（高于普通用户）、粉丝数>1000、内容以真实使用体验为主（非广告风格）。标记为品牌KOC候选人，推送给品牌运营团队建立合作（邀请试驾新车/参加品牌活动/提供专属售后通道），在不破坏真实性的前提下激活正向传播。',
+'<b>竞品口碑对比分析</b>：同类竞品同期口碑横向对比：正负面比例对比/主要议题对比/KOC分布对比。识别竞品薄弱点（用户吐槽最多的竞品痛点），作为自身产品和营销的差异化机会。发现竞品优势（用户高度称赞的竞品功能），作为警示和改进目标。战略价值：比花钱做焦点小组便宜100倍、快100倍、样本量大100倍的竞争情报系统。月度竞品口碑报告自动生成，推送给产品规划和市场团队。',
+'<b>负面舆情处置流程</b>：分级处置机制：P0级（安全事故/人员伤亡/大规模起火，<15分钟告警+公关总监+品牌VP介入，1小时内启动回应）；P1级（负面帖子短时间传播量>5万，或KOL/媒体发布负面长测，<30分钟告警，4小时内回应）；P2级（日常负面投诉，次日处置）；P3级（个体负面评价，纳入统计但不单独处置）。处置辅助：Agent为每个P0/P1事件自动生成"处置建议包"：事件摘要+传播数据+关联历史事件+行业同类处置案例+建议回应方向（由公关团队人工最终决策）。',
+'<b>洞察反哺产品与营销</b>：口碑数据的最终价值不是危机处置，而是驱动改进。月度洞察报告自动生成：① 用户最频繁吐槽的TOP5功能（直接提交产品改进Backlog）；② 用户最自发推荐的TOP3功能（提炼为营销USP）；③ 竞品最常被用于比较的维度（作为产品规划参考）；④ 用户对新功能的自然反应（上市后30天口碑热力图）。让"用户在社交媒体说什么"直接影响"产品下一步做什么和市场如何讲故事"，形成口碑→产品→口碑的飞轮。',
+'<b>内容营销生成辅助（洞察→内容的最后一环）</b>：舆情Agent不只是"监听"，还应该将洞察转化为可执行的内容策略。具体功能：① 热点借势内容建议——当某类讨论热度上升（如竞品刹车问题爆发），Agent识别关联机会并自动生成"我们的主动刹车系统为什么更可靠"的内容创作方向和关键话术，供内容团队参考；② USP内容素材库——基于用户自发好评最高的功能点，AI自动生成该功能的多种表达角度（场景化故事/数据支撑/竞品对比），形成可供营销团队直接使用的内容素材包；③ KOC内容激励包——识别到潜在KOC后，Agent自动生成个性化合作方案（基于其历史内容风格推荐适合的体验活动）和参考性内容创作角度（不限制真实性，给创作方向建议）；④ 负面对应话术库——对高频负面议题（如"OTA后某功能变差"），维护标准化的官方应对话术和事实澄清素材，确保各渠道回复口径一致，减少公关失误。所有AI生成内容仅作为参考和辅助，最终发布必须经人工审核，AI不代替公关和内容团队判断。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['数据采集层','多平台爬虫/API（微博开放API+小红书/抖音/B站/汽车垂类非官方渠道爬取，需按各平台robots.txt合规采集）+ 实时流处理（Kafka+Flink，30分钟更新，危机关键词实时流）+ 内容去重（MinHash+LSH，过滤转发/复制内容，避免重复计数）+ 媒体分级数据库（各平台账号的权重/粉丝数/历史影响力）'],
+['NLP分析层','汽车领域情感分析模型（通用情感模型Fine-tune汽车语料，识别"底盘很扎实"=正面，"底盘很硬"=中性/负面差异）+ 议题聚类（BERTopic，自动发现话题，无需预定义关键词）+ 实体识别（车型名称/功能名称/人名的精确提取）+ 传播分析（转发链路追踪，识别病毒式扩散节点）'],
+['洞察生成层','KOC识别算法（互动率×内容质量×账号真实性×粉丝质量多维评分）+ 竞品对比分析引擎（同类车型口碑维度对齐，横向比较）+ 趋势预测（议题是否在扩散或收敛，预测24-48小时传播量）+ 报告自动生成（LLM：结构化数据→叙事洞察报告）'],
+['告警与协作层','分级告警规则引擎（P0-P3四级，多维度触发条件配置）+ 即时推送（企业微信/钉钉/邮件/电话，不同级别不同渠道）+ 处置工作流（事件→分配负责人→跟踪进度→关闭确认）+ 处置效果追踪（回应后舆论情感变化趋势）'],
+['数据与权限层','舆情数据脱敏存储（原始用户ID匿名化，只保留统计特征）+ 分角色数据视图（公关看事件详情，品牌看趋势，产品看功能洞察）+ 竞品数据保密管理（竞品分析报告内部限流，防商业泄密）+ 数据保留策略（原始内容保留12个月，聚合统计永久保留）']
+]},
+{num:'04',title:'竞品对标',type:'bench',items:[
+{who:'新华智云/识微商情',what:'专业舆情监控工具，覆盖渠道广，告警准确率高，但偏向被动监控，缺乏行业深度洞察和与产品/销售决策的联动能力，属于"通用监控工具"而非"汽车行业Agent"。'},
+{who:'理想汽车',what:'用户运营团队深度运营社区，在APP内建立高活跃用户社区，将用户反馈直接影响OTA和产品规划。优势是闭环，劣势是范围限制在自有平台，外部舆论覆盖不足。'},
+{who:'特斯拉',what:'马斯克个人账号是最大的舆情资产，品牌本身具备天然的舆论引导能力。但危机处理上经历多次失误（刹车事件、用户维权），表明即便品牌强大也需要系统化的舆情管理。'},
+{who:'差异化机会',what:'将舆情洞察直接打通产品规划系统和销售策略调整，做到"社交媒体说什么→OTA当月更新什么→营销讲什么故事"的实时闭环，是传统监控工具无法提供的整合价值。'}
+]},
+{num:'05',title:'ROI量化',type:'roi',items:[
+{label:'危机响应提速',value:'响应时间提升16倍',note:'从人工发现4小时→AI预警15分钟，危机扩散前的处置窗口大幅延长'},
+{label:'监控成本降低',value:'人力成本降60%',note:'AI覆盖100%内容，人工聚焦P0/P1处置，不再需要大量舆情监控专员'},
+{label:'KOC转化价值',value:'投放ROI约5-8倍',note:'KOC内容平均互动率是KOL的3-5倍，且成本低10倍，精准识别后效率极高'},
+{label:'产品改进加速',value:'缩短反馈周期3个月',note:'从用户调研/焦点小组的季度反馈，变成实时的口碑洞察直达产品团队'}
+]},
+{num:'06',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'全渠道监控与分级告警',desc:'8大渠道数据接入，基础情感分析上线。危机关键词实时告警推送（P0/P1）。议题聚类上线，品牌运营团队每日接收议题摘要（替代人工看帖）。竞品监控基础版（正负面比例对比）。关键里程碑：监控覆盖率>95%，P0告警响应时间<15分钟。'},
+{phase:'Phase 2 · 3-8个月',title:'KOC管理与深度洞察',desc:'KOC识别算法上线，自动输出月度KOC候选名单。产品功能口碑洞察上线（TOP5吐槽/TOP3推荐），正式推送给产品规划会议。竞品口碑深度分析（功能维度对比）上线。处置工作流系统上线（事件分配跟踪闭环）。'},
+{phase:'Phase 3 · 8个月+',title:'口碑营销与产品联动',desc:'口碑洞察直接接入产品Backlog系统（完成Product Management系统集成）。KOC管理平台上线（关系维护/内容合作/效果追踪一体化管理）。舆情预测模型上线（基于议题扩散速度预测48小时传播量，提前判断是否需要主动介入）。品牌口碑健康度指数（月度发布，作为品牌战略的量化基准）。'}
+]},
+{num:'07',title:'核心成功指标',type:'metrics',items:[
+{name:'舆情监控覆盖率',target:'> 95%（主流平台）'},{name:'危机预警响应时间',target:'< 15分钟（P0级事件）'},
+{name:'情感分析准确率',target:'> 90%（汽车领域语料）'},{name:'KOC识别精准率',target:'> 80%（有效互动占比）'},
+{name:'负面议题处置时效',target:'P1级 < 4小时回应'},{name:'洞察采纳率',target:'> 60%（产品/营销团队月度采纳数量）'}
+]},
+{num:'08',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'合规',text:'各平台数据采集须遵守robots.txt和平台服务协议，商业规模爬取需通过官方API或签订数据合作协议，未授权采集面临法律风险和账号封禁'},
+{type:'warn',label:'合规',text:'舆情分析涉及个人用户发帖内容，须做数据最小化处理（只保留分析特征，不存储原始用户ID和内容），符合《个人信息保护法》最小必要原则'},
+{type:'warn',label:'法律',text:'KOC合作若构成广告宣传，须在内容中标注"广告"或"合作"，否则违反《广告法》虚假广告相关规定，车企和KOC均面临处罚风险'},
+{type:'info',label:'运营',text:'公关团队的工作方式转型：从"盯屏幕等热搜"变成"看AI摘要做决策"，需要团队建立对AI摘要的信任，同时保留关键判断的人工参与（AI摘要仅供参考，公关判断不可被完全替代）'},
+{type:'ok',  label:'机会',text:'舆情数据是最实时的市场调研：用户在社交媒体的自然表达，远比问卷调查真实。将口碑洞察系统与产品规划打通的车企，在功能迭代速度上可建立比竞品快3-6个月的响应优势'}
+]}
+],related:['sales','aftersales','recall']},
+
+// ══════════════════════════════════════════════════════════════════
+// 新增场景 1：展厅线索培育 Agent
+// ══════════════════════════════════════════════════════════════════
+leadnurture:{cat:'sales',catLabel:'销售服务',title:'展厅线索培育 Agent',
+subtitle:'从用户在抖音/小红书留下第一个意向信号，到最终踏进展厅，中间有2-8周的决策窗口。这段时间内的精准培育决定了最终成交率——而大多数车企正在浪费它。',
+sections:[
+{num:'01',title:'产品定位：抢占2-8周决策窗口',type:'prose',content:`<p>汽车购车决策周期平均45-75天，在用户"留资"到"进店"之间存在一个关键的培育窗口。传统做法是销售顾问电话轰炸——用户体验差、转化率低（平均进店率仅15-25%）、销售顾问精力浪费在低意向线索上。</p><p><b>核心问题重新定义</b>：不是"如何让更多人来电话沟通"，而是"如何在用户自己的节奏里，提供刚好有用的信息，让他在准备好的时候主动来"。这需要的是"陪伴式培育"而非"催促式追单"。</p><p><b>三类线索来源与对应策略</b>：① 抖音/小红书留资（高意向内容触发，冲动成分大，需要在24小时内快速响应并建立关系，避免热度消退）；② 官网/App预约（主动行为，意向明确，需要提供深度产品信息和比较内容）；③ 试驾但未成交（已接触产品，有具体顾虑，需要针对性解答和差异化激励）。三类线索的培育话术、内容节奏、跟进频率完全不同，不能用同一套模板。</p><p><b>商业价值</b>：进店率从18%提升至35%（行业优秀水平），按每月1000条有效线索计算，每月多进店170人。按10%的进店成交率，每月多成交17辆，按均价15万元，月度增量收入255万元。线索培育Agent的年度价值远超千万级别。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>线索意向评分与分层（Lead Scoring）</b>：不是所有线索都值得相同投入。评分维度：① 来源渠道权重（试驾预约100分、App深度浏览80分、抖音留资60分、朋友圈广告留资40分）；② 行为深度（浏览车型配置页面次数、对比功能使用、收藏特定颜色/配置）；③ 人口画像匹配（城市/年龄/职业，与该车型目标人群吻合度）；④ 互动响应质量（是否主动回复消息、问题是否具体）；⑤ 时间衰减（留资后48小时未互动，意向分衰减30%）。输出：A级（>80分，销售顾问24小时内人工跟进）、B级（60-80分，Agent自动培育+双周人工节点）、C级（<60分，纯自动化内容滴灌，月度清洗一次）。',
+'<b>个性化内容培育序列（Drip Campaign）</b>：根据线索画像和意向车型，自动生成8-12周的内容推送序列，每周1-2次推送。内容类型按时间线分层：第1-2周（关系建立期）：欢迎消息+车型亮点视频+真实车主口碑故事，不涉及价格和促销；第3-5周（信息深化期）：用户最感兴趣功能的深度介绍+竞品对比内容（客观角度）+线下活动邀约；第6-8周（决策促进期）：专属试驾邀约+限时权益提示（非虚假紧迫感，而是真实的季末政策或库存）+一对一顾问答疑预约。内容推送渠道：企业微信（主渠道，打开率>40%）+App Push+短信（仅重要节点）。每次推送后48小时内无互动，自动暂停序列，换一种方式尝试。',
+'<b>意向信号实时捕捉与人工介入触发</b>：Agent持续监控线索的行为信号，发现高意向信号立即推送给销售顾问：① 用户连续3次查看同一车型的某个配置选项（可能在纠结配置选择）；② 用户打开了金融方案计算器并填写了月供信息（关注贷款方案）；③ 用户把某款车型分享给了另一个联系人（可能需要家人意见）；④ 用户在培育序列中主动回复并提问（明确进入决策阶段）。销售顾问在30分钟内响应这些高意向信号，转化率比定期随机跟进高3-5倍。Agent同时为销售顾问生成"接触简报"——该用户的完整行为轨迹+兴趣点+建议开场话题，让销售顾问每次都能"精准发力"。',
+'<b>试驾预约智能化（关键转化节点）</b>：试驾是意向从线上到线下的关键转化节点，预约体验直接影响进店率。智能化设计：① 情境感知预约邀约——周末前一天（周五下午）推送试驾邀约，转化率比工作日高40%；② 多时段智能推荐——基于用户历史行为（活跃时间段）推荐最合适的试驾档期，而非让用户自己选择所有空档；③ 预约确认+行程规划辅助——确认后自动发送展厅位置、停车指引、预计试驾时间（让用户有充足准备感）；④ 取消/改期主动管理——预约前24小时确认提醒，检测到用户可能无法到达时主动询问是否改期（减少爽约率，爽约率从25%降到10%以内）。',
+'<b>经销商线索分配与销售顾问协同</b>：线索智能分配给最适合的销售顾问（不是轮流制）。匹配维度：顾问专长（熟悉SUV/轿车/新能源）×顾问当前负荷（线索数量）×历史成交率（相似客群的成交率）×客户地理位置（就近原则）。分配后，顾问App收到线索全景包：用户画像+意向车型+培育历程+关键互动记录+AI建议的跟进话术。顾问跟进结果反馈后，Agent更新意向分并调整后续培育策略。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['数据接入层','各渠道留资API（抖音/小红书/天猫/官网/App）+ CRM系统双向同步（Salesforce/本地CRM）+ 行为追踪SDK（App内页面浏览/按钮点击/停留时长，数据脱敏）+ 企业微信API（消息推送/模板消息/客服对话）'],
+['评分与分层引擎','Lead Scoring模型（逻辑回归+规则混合，每日重新评分）+ 意向信号实时流处理（Flink，<30秒捕捉高意向事件）+ 线索去重与合并（同一用户多渠道留资自动识别合并）+ 冷热转化预测（预测14天内进店概率）'],
+['内容管理与推送层','内容库（视频/图文/H5，按车型×阶段×标签结构化管理）+ 序列编排引擎（可视化配置培育路径，支持条件分支）+ 多渠道推送中台（企微/短信/Push统一调度，频控管理）+ 个性化变量填充（用户姓名/意向车型/城市/专属优惠动态插入）'],
+['顾问协同层','线索分配算法（多目标优化：负荷均衡×成交率最大化）+ 顾问App（线索简报/跟进提醒/话术库）+ 跟进结果录入（简化版，3步完成一次跟进记录）+ 团队绩效看板（线索量/跟进率/进店率/成交率四维漏斗）'],
+['分析与优化层','培育序列AB测试（内容/时机/频率持续优化）+ 渠道ROI分析（各来源线索→成交的全链路归因）+ 流失预测（识别即将放弃购买的线索，触发挽回机制）+ 销售预测（基于培育漏斗数据预测月度成交量）']
+]},
+{num:'04',title:'关键体验设计：陪伴而非催促',type:'prose',content:`<p>线索培育最容易走向的错误方向是"骚扰式推销"——每天发消息、反复询问"考虑得怎样了"。这不仅无效，还会让用户拉黑、投诉，损害品牌形象。</p><p><b>正确的培育哲学是"刚好有用"</b>：在用户需要某个信息的时候出现，而不是在品牌方想推销的时候出现。这需要：① 推送频率要克制（B级线索最多每周1次，A级最多2次）；② 内容要有价值（不是"优惠快来抢"，而是"我们刚发布了一个关于这款车悬挂系统的深度测评，正好针对您关心的驾驶质感"）；③ 停止推送要果断（连续3次未读，立即暂停，不强迫）。</p><p><b>让用户感觉被"记住"而非被"监视"</b>：Agent应该让用户感受到品牌是"认识"他的——"您上次问过关于双联屏的操控体验，这里有一个实际使用视频"——而不是冷冰冰的群发模板。这需要把用户行为数据转化为自然语言的个性化内容，技术实现上就是将用户标签填充到动态内容模板中。</p><p><b>销售顾问与AI的边界</b>：AI负责"热身"，销售顾问负责"临门一脚"。所有涉及价格谈判、特殊权益、复杂方案的对话，必须转给真人。AI不应该尝试完成整个销售过程——它的使命是把用户在"准备好"的时候精准交给销售顾问，而不是替代销售顾问。</p>`},
+{num:'05',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'线索集中管理与基础自动化',desc:'打通各渠道留资，统一进入CRM，解决"线索散落各处"的基础问题。建立Lead Scoring基础版（5维度规则评分，先用规则代替ML）。自动化欢迎消息和产品资料推送（替代销售顾问手动发送）。顾问App上线，统一查看和跟进线索。关键里程碑：线索统一管理率>95%，销售顾问首次跟进时效<24小时（A级线索）。'},
+{phase:'Phase 2 · 3-7个月',title:'智能培育序列与意向信号',desc:'内容培育序列上线（按车型×意向阶段配置12周内容路径）。意向信号实时捕捉上线（高意向行为30分钟内推给顾问）。试驾预约智能化（情境感知推送+爽约预警）。Lead Scoring升级为ML模型（前3个月积累训练数据）。关键里程碑：线索进店率>28%（从基准18%提升），顾问人效提升（人均跟进线索量+30%）。'},
+{phase:'Phase 3 · 7个月+',title:'精准归因与持续优化',desc:'培育序列AB测试全量上线（持续优化内容/时机/频率）。渠道ROI全链路归因（从留资渠道到成交，帮助市场部门优化广告投放）。流失预测模型上线（提前14天识别高流失风险线索，触发挽回机制）。经销商横向对比基准（识别培育表现优秀的门店，提炼可复制的最佳实践）。'}
+]},
+{num:'06',title:'核心成功指标',type:'metrics',items:[
+{name:'线索进店转化率',target:'> 32%（基准行业均值18%）'},{name:'A级线索首次响应时效',target:'< 30分钟'},
+{name:'培育序列打开率',target:'> 35%（企微消息）'},{name:'试驾预约爽约率',target:'< 12%（基准约25%）'},
+{name:'线索到成交归因准确率',target:'> 85%（多触点归因模型）'},{name:'销售顾问人效提升',target:'> 30%（人均跟进线索量）'}
+]},
+{num:'07',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'合规',text:'企业微信高频消息推送若被用户标记"骚扰"，将限制账号功能，需严格遵守频控规则（B级线索每周≤1条，A级≤2条），并在首次联系时说明消息来源和退订方式'},
+{type:'warn',label:'数据',text:'跨渠道线索合并（同一用户在抖音和官网都有留资）需用手机号/设备ID等多维匹配，合并准确率低会导致重复打扰，损害用户体验'},
+{type:'info',label:'运营',text:'内容库建设是最大瓶颈：培育序列需要大量高质量内容素材，车企通常缺乏系统化的内容运营能力，需要在技术上线前同步建设内容素材库（建议至少50+件高质量素材）'},
+{type:'ok',  label:'机会',text:'培育序列数据是最真实的用户兴趣画像：哪类内容打开率高、哪类问题被反复提问，直接反映潜在用户最关心的购车决策因子，对产品规划和营销策略有极高参考价值'}
+]}
+],related:['sales','pr','cockpit']},
+
+// ══════════════════════════════════════════════════════════════════
+// 新增场景 2：健康出行 Agent
+// ══════════════════════════════════════════════════════════════════
+health:{cat:'cabin',catLabel:'车内体验',title:'健康出行 Agent',
+subtitle:'汽车不再只是交通工具，而是每天陪伴数小时的移动生活空间。车内空气质量、驾驶员体征监测、长途健康管理——让每一次出行都成为健康的一部分而非健康的消耗。',
+sections:[
+{num:'01',title:'产品定位：把车变成移动健康守护者',type:'prose',content:`<p>中国城市居民平均每天在车内时间超过90分钟。车内空间是一个相对密闭的环境，PM2.5、CO2、甲醛（来自内饰材料）、VOC等有害物质容易富集。同时，长时间驾驶带来的久坐、疲劳、精神紧张是慢性健康损耗。健康出行Agent的使命是让车内时间成为健康资产而非健康负债。</p><p><b>三大健康维度</b>：① 车内环境健康（空气质量监测与主动净化）；② 驾驶员生理健康（心率、血氧、血压趋势、疲劳指数实时监测）；③ 出行习惯健康（久坐提醒、作息规律分析、长途健康规划）。三个维度协同，形成"感知-分析-干预"的完整闭环。</p><p><b>市场时机</b>：新能源汽车的电气化架构天然具备丰富的传感器接口；后疫情时代用户对健康的关注度空前提升；可穿戴设备（Apple Watch/华为手环）的普及为生理数据采集提供了低成本渠道；智能座舱已有DMS摄像头，只需增加算法即可实现面部生理特征分析。健康场景是智能座舱差异化的蓝海，目前车企竞争烈度远低于导航和娱乐功能。</p><p><b>商业模式</b>：基础空气质量监测免费随车；健康监测高级功能（生理指标分析+健康报告+医疗建议）订阅制，建议定价49-99元/月；与保险公司合作（健康驾驶习惯数据授权换取保费折扣，类UBI模式）；与医疗机构合作（异常健康指标下推荐就医渠道，获取导流佣金）。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>车内空气质量实时监测与主动净化</b>：传感器阵列：PM2.5传感器（颗粒物实时浓度，精度±15μg/m³）+ CO2传感器（驾驶舱浓度，>1000ppm时认知能力开始下降）+ TVOC传感器（总挥发性有机物，包含甲苯/苯/甲醛等）+ 温湿度传感器（舒适度计算）。实时空气质量指数（AQI in-cabin）：计算综合车内AQI，按5级（优/良/轻度/中度/重度）展示在中控屏。主动净化联动：检测到PM2.5>35μg/m³自动开启空气净化器至最高档并关闭外循环；CO2>1500ppm自动开启外循环通风（如外部空气较差，开启前提示用户选择）。新车甲醛浓度过高预警：新车内饰材料在高温下挥发VOC增加，夏季停车后首次开门通风建议（具体开窗时长建议）。',
+'<b>驾驶员生理健康监测</b>：数据来源三选一（按车型配置）：① 方向盘内置心率传感器（手握即测，精度高，成本约150-300元/套）；② DMS摄像头面部rPPG算法（通过面部血色变化估算心率，非接触式，精度稍低）；③ 与可穿戴设备蓝牙联动（Apple Watch/华为手环实时同步，用户体验最好，成本最低）。监测指标：实时心率（显示当前+30分钟趋势）、心率变异性HRV（疲劳和压力的间接指标）、血氧SpO2（高原驾驶重要指标）、皮肤温度（情绪状态辅助指标）。异常判定：心率持续>110bpm超过5分钟（可能焦虑/心脏事件）、心率骤降<50bpm（可能晕厥风险）——立即语音提示并提示靠边停车。',
+'<b>疲劳检测升级版（超越DMS面部检测）</b>：当前行业DMS只做眨眼频率和点头检测，误报率高，驾驶员体验差（被误报了几次就关掉功能）。多维融合提升准确率：DMS面部特征（眨眼率/打哈欠/头部下垂）+ 方向盘操控模式（转向角突变频率降低，是疲劳信号）+ 车道保持质量（频繁偏移）+ 生理指标（HRV下降+心率稳定=疲劳信号组合）+ 时间因子（凌晨2-5点高风险窗口）。五维融合后，疲劳识别准确率从单一DMS的70%提升至>88%，误报率<5%。疲劳干预机制：轻度疲劳（建议播放节奏感强音乐/开车窗通风/适当升高温度）；中度疲劳（语音建议下一个服务区休息，导航自动标注最近服务区位置）；重度疲劳（持续语音/音效警告，同时向紧急联系人发送位置）。',
+'<b>长途出行健康规划</b>：出行前：基于旅程时长、天气（高温/低温影响体力）、出发时间（夜间驾驶风险）给出健康风险评估和建议。途中：每90分钟提醒休息（符合国家高速公路休息站间距标准）；推荐服务区（按用户偏好：有足够活动空间、餐厅质量、卫生间等）；活动建议（5分钟拉伸动作视频，专为驾驶后缓解腰背紧张设计）。餐饮健康建议：长途驾驶建议避免高油脂/高碳水/酒精（影响注意力），推荐高蛋白轻食选项。抵达后：行程健康总结（驾驶时长、座姿质量、休息次数、健康得分）。',
+'<b>健康数据与医疗服务联动（长期价值）</b>：月度健康报告：综合心率趋势、行驶习惯、空气质量暴露，生成可与家庭医生分享的月度报告（PDF格式）。异常趋势提醒：连续14天晨间心率异常（如逐渐升高），主动提示用户关注并建议体检（非诊断，是关注提醒）。高原驾驶预警：检测到GPS高度>2500m，实时监测血氧并在<90%时给出高原反应风险提示。与医疗机构合作（未来）：用户授权后，异常健康数据可直接发送给签约家庭医生，实现车内健康监测→医疗预警的闭环。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['传感器与数据采集层','车内传感器阵列（PM2.5/CO2/TVOC/温湿度，CAN总线接入）+ 方向盘心率传感器/DMS摄像头rPPG算法（二选一）+ 蓝牙5.0健康设备协议（Apple Watch/华为手环/小米手环数据同步）+ GPS高度数据（高精地图海拔信息）+ 车身传感器（方向盘角速度/车道偏移量/制动力度，用于疲劳融合检测）'],
+['实时计算层','端侧健康推断引擎（疲劳/心率异常实时判定，<500ms响应，不依赖云端）+ 空气质量AQI融合算法（多传感器数据加权）+ 多维疲劳融合模型（DMS+方向盘+车道+生理五维信号）+ 高原反应预警算法（血氧+海拔+时间的风险评估模型）'],
+['云端分析层','健康数据存储（加密，用户独立数据仓库）+ 趋势分析引擎（14天/30天滚动窗口健康趋势）+ 个性化基线建立（用户自己的健康基线，而非群体均值）+ 报告生成服务（月度健康报告PDF生成）'],
+['用户交互层','车机HMI（实时健康仪表板，简洁展示核心指标）+ 语音提醒系统（疲劳/空气质量/久坐提醒，语音风格可配置：关怀型vs简洁型）+ 手机App健康中心（历史数据/报告/设置）+ 与智能手表表盘联动（实时健康状态）'],
+['隐私与安全层','生物特征数据本地加密存储（心率/面部特征，不上传原始数据）+ 数据最小化处理（仅上传统计特征，不含原始时序数据）+ 用户完全可见可控（查看/导出/删除所有健康数据）+ 医疗数据分级授权（健康数据≠医疗数据，不做诊断，规避医疗法规风险）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'空气质量监测与基础疲劳预警',desc:'车内AQI传感器接入，实时展示空气质量+主动净化联动。基础疲劳检测上线（DMS面部+时间因子，先做单维度，建立用户信任）。长途休息提醒（每90分钟）。关键里程碑：空气质量功能用户满意度>75%，疲劳提醒误报率<10%（超过则用户会关闭功能）。'},
+{phase:'Phase 2 · 4-9个月',title:'生理监测与多维疲劳融合',desc:'可穿戴设备数据同步上线（Apple Watch/华为手环，成本最低的生理数据采集路径）。多维疲劳融合模型上线（DMS+方向盘+生理，准确率提升至>85%）。月度健康报告功能上线。长途出行健康规划功能上线（出发前风险评估）。关键里程碑：生理监测日活用户>20%，月度报告查阅率>40%。'},
+{phase:'Phase 3 · 9个月+',title:'健康生态与商业化',desc:'高端车型方向盘心率传感器硬件方案落地（需与车型同步规划，至少提前18个月立项）。健康数据授权商业化探索（与健康险/UBI险合作，授权数据换取保费折扣，用户主动选择）。与医疗机构健康管理服务合作（体检套餐/家庭医生服务导流）。健康订阅服务上线（深度分析/专家咨询/个性化健康方案）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'空气质量功能使用率',target:'> 60%（每次行程默认开启）'},{name:'疲劳预警准确率',target:'> 88%（误报率<5%）'},
+{name:'生理监测日活用户',target:'> 25%（绑定可穿戴设备）'},{name:'月度健康报告查阅率',target:'> 40%'},
+{name:'健康干预接受率',target:'> 70%（疲劳建议停车休息）'},{name:'用户功能关闭率',target:'< 8%（关闭=极差体验）'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'医疗法规',text:'车内健康监测不能做医疗诊断（属于医疗器械监管范畴），所有功能只能做"健康参考"和"关注提醒"，不能输出诊断结论或治疗建议，产品文案必须法务审核'},
+{type:'warn',label:'隐私',text:'心率、血氧等生理数据属于《个人信息保护法》定义的"敏感个人信息"，须独立授权，加密存储，明确告知用途，用户有权随时删除，任何情况下不得对外出售'},
+{type:'warn',label:'准确性',text:'非接触式生理监测（DMS面部rPPG）在弱光/强光/化妆/深肤色等场景精度显著下降，需清晰标注测量条件限制，避免用户在关键时刻过度依赖不准确的数据'},
+{type:'info',label:'硬件',text:'方向盘心率传感器需要在车型设计阶段就规划，无法通过OTA添加，建议优先在高端配置车型部署，同时推进与可穿戴设备的软件联动方案覆盖更广泛用户'},
+{type:'ok',  label:'机会',text:'健康出行数据与UBI保险结合是长期护城河：安全驾驶+良好生理状态的用户，实际事故率更低，保险公司愿意用折扣换取数据授权，车企、用户、保险三方共赢'}
+]}
+],related:['cockpit','safety','insurance']},
+
+// ══════════════════════════════════════════════════════════════════
+// 新增场景 3：经销商运营 Agent
+// ══════════════════════════════════════════════════════════════════
+dealer:{cat:'ind',catLabel:'产业服务',title:'经销商运营 Agent',
+subtitle:'4S店是汽车销售的最后一公里，也是品牌体验的直接承载者。但大多数经销商仍靠经验管库存、靠传帮带培训员工、靠直觉预测销量。用AI武装经销商，是整车厂提升渠道竞争力最有效的杠杆之一。',
+sections:[
+{num:'01',title:'产品定位：赋能渠道，而非替代渠道',type:'prose',content:`<p>4S经销商面临三重压力：① 库存压力（压库积压资金，滞销车型贴息促销）；② 人才压力（销售顾问流失率高达40%+/年，新人培训成本高）；③ 盈利压力（整车毛利被压缩，需要靠金融/保险/附件提升综合毛利）。这三个痛点都有AI解法，且ROI可量化。</p><p><b>产品定位的关键选择</b>：经销商Agent应该定位为"给经销商的工具"，而非"整车厂监控经销商的系统"。如果经销商感知到系统是厂商用来管控自己的，会产生强烈抵触。正确的定位是：帮经销商提升盈利能力和运营效率，数据只有在经销商授权下才向厂商共享。信任是渠道合作的基础，不能以"智能化"之名突破。</p><p><b>三大核心价值</b>：① 库存智能（对的车、对的量、对的时间）；② 知识加速（新人2个月达到熟手水平）；③ 盈利提升（金融/保险/附件渗透率提升）。每个价值方向都有清晰的财务回报，是向经销商老板销售时的核心说服逻辑。</p><p><b>B2B2C的特殊性</b>：整车厂是付费方，经销商是使用方，消费者是最终受益方。这个三方关系决定了产品设计必须同时满足：厂商的数据洞察需求 + 经销商的盈利提升需求 + 消费者的体验提升需求。三者缺一，系统要么推广受阻，要么使用率低，要么造成口碑伤害。</p>`},
+{num:'02',title:'三大核心模块详细拆解',type:'steps',steps:[
+'<b>库存智能优化系统</b>：车型需求预测：基于所在城市/区域的历史成交数据、竞品销量、宏观经济指标（油价、利率变化）、季节规律，提前60天预测各车型/颜色/配置的需求量。精度目标：月度预测误差<15%（相比经验预测的30%+误差大幅改善）。库存健康诊断：实时计算每款车的库龄分布（<30天/30-60天/>60天）和库存结构问题（哪些颜色积压/哪些配置紧缺）。超过45天库龄的车型，自动生成促销建议（价格优惠区间建议、可搭配的金融方案）。调拨优化：识别同区域不同经销商间的库存互补机会（A店白色紧缺、B店白色积压，建议调拨而非各自压库），厂商可作为协调方促成调拨，提升整体渠道效率。采购节奏建议：基于销售速率、在途车辆、节假日等因素，每周生成自动补货建议，替代凭感觉报计划。',
+'<b>员工培训知识助手</b>：汽车销售知识体系复杂：车辆技术参数（百项以上）、竞品对比（5-10款竞争车型）、金融方案（数十个方案组合）、保险产品（不同险种组合）、话术技巧（成交障碍处理）。新人通常需要3-6个月才能熟练掌握，流失率高。知识助手的价值：① 随时问随时答（手机App随时查，不需要翻厚厚的产品手册）；② 竞品实时更新（竞品发布新车/调价，系统24小时内更新对比话术）；③ 情景演练（模拟客户提问，AI扮演挑剔客户，顾问练习应对）；④ 成交案例库（本店+全国优秀成交案例，按客户类型分类检索）。效果预期：新人达到熟手水平的时间从3-6个月压缩到6-8周，顾问信心提升直接影响成交率。',
+'<b>综合盈利提升（金融/保险/附件）</b>：整车毛利已被高度压缩（部分车型整车毛利仅1-3%），经销商真正的利润来自金融渗透（贷款利差）、保险返点、精品附件。但很多顾问只会卖车，不会卖金融和保险，或者只推固定方案不考虑客户实际需求。智能推荐引擎：基于客户年龄/职业/购车预算/家庭结构，推荐最合适的金融方案（低首付方案/低月供方案/短期全款+延保组合等）和保险套餐（基础/全险/增值险组合）。实时利润模拟：顾问在报价时，系统同步显示"若客户选择XX金融方案，本单综合毛利为XX元，较全款高XX元"，让顾问有动力主动推金融。顾问绩效追踪：金融渗透率/保险渗透率/附件件数，与绩效挂钩的透明数据，促进顾问自我优化。',
+'<b>运营数据驾驶舱（经销商老板视角）</b>：经销商老板最需要的不是细节报表，而是"一眼看懂本店健康状态"的全局视图。核心驾驶舱：今日/本周/本月销售漏斗（展厅客流→试驾→洽谈→成交，每步转化率）、库存健康度（红黄绿三色标注）、员工绩效排行（成交率/客单价/综合毛利/满意度多维排行）、资金占用分析（压库金额×资金成本）。自然语言查询："本月新能源车型的成交客户平均年龄和职业分布"——Agent自动从数据库提取并回答，无需IT人员出报表。预警自动推送：本月完成率<70%时（基于目标进度），自动推送预警并附上同类优秀门店的比较数据和改进建议。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['数据接入层','DMS系统（经销商管理系统，核心数据源：销售/库存/服务工单）+ 厂商数据平台（车型规格/价格/政策/竞品数据，通过厂商API同步）+ 客流系统（摄像头+Wi-Fi探针，统计进店客流）+ 员工行为数据（App使用频率/培训完成度/问答记录）'],
+['智能分析层','需求预测模型（ARIMA+LightGBM混合，按车型独立建模）+ 库存优化算法（多约束库存规划，考虑资金成本和订货周期）+ 综合毛利计算引擎（整车+金融+保险+附件实时利润模拟）+ 顾问行为分析（成交率驱动因子分析）'],
+['知识管理层','产品知识库（车辆参数/竞品对比/金融方案，每周自动同步厂商最新信息）+ 话术库（成交案例+异议处理，按场景分类）+ 情景演练引擎（LLM模拟客户对话，评分反馈）+ 知识更新订阅（竞品动态推送，厂商政策变更通知）'],
+['用户交互层','经销商老板App（数据驾驶舱+预警推送）+ 销售顾问手机App（知识查询+培训+线索跟进）+ 大屏展示（展厅客流/日销量实时大屏，营造竞争氛围）+ 厂商管理后台（多店横向比较，渠道健康度分析）'],
+['权限与隔离层','经销商数据主权（每家店的详细经营数据不对外共享，厂商只看脱敏聚合数据）+ 竞品信息安全（竞品对比策略是经销商核心工具，不得向外泄露）+ 员工权限分级（老板/总监/顾问三级权限，顾问只看自己的数据）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'库存可视化与知识库基础版',desc:'库存健康度实时可视化（库龄分布/结构分析），替代人工Excel统计。产品知识助手基础版上线（车型参数问答/竞品快速对比），先解决顾问"不知道"的问题。综合毛利可视化（报价时实时显示）。关键里程碑：知识助手日均查询次数>30次/店（证明有实际使用需求），库存分析满意度>70%。'},
+{phase:'Phase 2 · 4-8个月',title:'预测优化与培训体系',desc:'需求预测模型上线（60天滚动预测），补货建议自动化。情景演练培训功能上线（新人培训场景：价格异议/竞品比较/金融推荐）。金融/保险智能推荐上线（基于客户画像推荐最优组合）。经销商老板驾驶舱上线（自然语言查询）。关键里程碑：预测准确率>85%（月度验证），新人上岗时间缩短>30%。'},
+{phase:'Phase 3 · 8个月+',title:'区域协同与生态扩展',desc:'区域库存调拨优化上线（多店间调拨建议，需要厂商作为协调方推动实施）。顾问行为分析深度版（识别高绩效顾问的成功因子，提炼可复制的最佳实践）。与售后系统联动（售后服务数据影响金融续保/附件推荐的精准度）。探索经销商联合采购（AI识别多店共同缺货品，组织联合采购降低库存风险）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'库存滞销率（>60天库龄）',target:'降低 > 30%'},{name:'需求预测准确率',target:'> 85%（月度预测误差<15%）'},
+{name:'新人上岗周期',target:'缩短 > 40%（3-6月→6-8周）'},{name:'金融渗透率提升',target:'> 8个百分点'},
+{name:'顾问知识助手日活',target:'> 80%（每个工作日使用）'},{name:'经销商系统NPS',target:'> 40分（经销商老板评价）'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'渠道关系',text:'系统定位必须是"经销商工具"而非"厂商监控"，经销商若感知到数据被用于厂商压货/考核，将强烈抵制。数据主权条款需在合同中明确：经销商详细经营数据未经授权不得向厂商开放'},
+{type:'warn',label:'DMS集成',text:'国内经销商DMS系统有汽车之家车商版/易车DMS/各厂商自建系统等数十种，接口差异大，集成工期容易严重超预期，需提前评估目标客群的DMS分布'},
+{type:'info',label:'推广',text:'经销商老板是关键决策人，但真正的使用者是销售顾问（年龄偏小，习惯用手机）。产品必须既能打动老板（ROI数据），又要让顾问用起来爽（手机端，操作简单），两个目标同等重要'},
+{type:'ok',  label:'机会',text:'知识助手的使用数据（哪些问题最常被问、哪类竞品对比最多）是对市场和产品团队极有价值的实时情报，可反向推动厂商改善产品竞争力和销售工具'}
+]}
+],related:['sales','leadnurture','aftersales']},
+
+// ══════════════════════════════════════════════════════════════════
+// 现有场景补充：保险理赔 - 增加 UBI 专节
+// ══════════════════════════════════════════════════════════════════
+// ──（UBI内容已内嵌在insurance场景的关键风险机会中，以下独立新增场景）
+
+// ══════════════════════════════════════════════════════════════════
+// 现有场景补充：研发制造 - 增加 ADAS数据闭环模块
+// ── 以新场景形式呈现
+// ══════════════════════════════════════════════════════════════════
+adas:{cat:'ind',catLabel:'产业服务',title:'ADAS数据闭环 Agent',
+subtitle:'智能驾驶的竞争本质是数据飞轮的竞争。车辆在路上每行驶一公里都在产生感知数据，如何高效地把这些数据转化为更好的模型，决定了智能驾驶能力的迭代速度。',
+sections:[
+{num:'01',title:'产品定位：数据飞轮是智能驾驶的核心竞争力',type:'prose',content:`<p>ADAS（高级驾驶辅助系统）和自动驾驶能力的持续提升，本质上是数据的持续积累和模型的持续迭代。特斯拉之所以在自动驾驶领域遥遥领先，核心优势不在于算法（算法是可以学的），而在于其百万级车队每天产生的海量真实路况数据，以及高效的数据→训练→部署→再采集的飞轮。</p><p><b>数据闭环的四个环节</b>：① 数据采集（车辆路上跑，传感器持续记录）；② 数据筛选（海量数据中找到"有训练价值"的片段）；③ 数据标注（让AI知道什么是对的，什么是错的）；④ 模型训练与部署（更新的模型OTA推送回车辆）。这四个环节的效率，决定了智能驾驶迭代速度。Agent的价值就是让这四个环节都更快、更精准、更低成本。</p><p><b>国内竞争格局</b>：小鹏、华为、理想都在大力建设自己的数据闭环基础设施。没有完整数据闭环能力的车企，将在智能驾驶能力迭代上越来越落后，差距不是线性的，而是指数级的。</p><p><b>两类车企的不同策略</b>：自研智驾（建设完整数据闭环，需要重资本投入）vs 使用供应商方案（华为/Mobileye，自身不掌握数据飞轮，但可快速上车）。两种策略各有利弊，本文聚焦自研路线的数据闭环Agent设计。</p>`},
+{num:'02',title:'数据闭环四大核心模块',type:'steps',steps:[
+'<b>智能数据采集与上传策略</b>：并非所有行驶数据都有同等价值。价值最高的数据是"边界场景"——算法当前处理不好的罕见但危险情况。数据采集策略：触发式采集（当ADAS系统发出预警、驾驶员接管、系统置信度<阈值时，自动保存前后30秒完整数据，包含所有传感器原始数据）；场景标签自动生成（恶劣天气/夜间弱光/施工路段/异常骑行者/行人突然横穿等场景自动标注，帮助数据团队快速检索目标场景）；数据压缩与上传优先级（停车/WiFi连接时上传高价值数据，行驶时只传触发事件元数据，节省流量成本）；用户隐私保护（上传数据前自动模糊化处理：行人面部、车牌号码、家庭地址附近GPS精度降低）。采集效率：从"全量上传"到"智能触发"，存储和传输成本降低80%，但高价值数据覆盖率提升。',
+'<b>自动化数据标注（降低成本的关键）</b>：数据标注是数据闭环最大的成本，传统全人工标注成本约100-500元/小时路测数据。降本路径：① 弱监督标注（模型半自动生成初始标注结果，人工只做验证和修正，效率提升5-10倍）；② 活跃学习（优先标注模型最不确定的样本，将有限的标注人力花在最有价值的地方）；③ 合成数据（仿真生成稀有场景：极端天气/夜间大雪/交通事故现场，补充真实世界罕见场景的数据不足）；④ 自动质检（标注一致性检查：多个标注员对同一数据的标注结果差异>阈值，自动返工重标注）。目标：数据标注成本降低60%，同时标注质量提升（减少人工疏忽导致的标注错误）。',
+'<b>模型评估与OTA部署Agent</b>：模型不是训练完就能上车的，需要严格的验证流程确保安全。自动化评估流程：在标准测试集上自动跑评估指标（精度/召回率/FPR）；Simulation-in-Loop测试（仿真环境跑数万公里，快速暴露潜在问题）；Hardware-in-Loop测试（实际硬件平台跑测试用例，排除硬件适配问题）；Shadow Mode测试（新模型与当前模型在真实路上同时运行，对比决策差异，人不接管，只记录）。仅当所有关键指标提升且无新增故障模式时，才触发OTA更新提案，由工程总监人工审批后推送。分批部署：先推给1%车辆（种子用户），收集7天实际表现数据，确认无异常再扩大比例（10%→30%→100%）。',
+'<b>场景库与数据价值评估</b>：建立结构化的"场景库"，记录已有数据对各场景的覆盖情况，识别数据缺口。场景分类：按难度（高速/城区/停车场/交叉路口）×天气（晴天/雨天/雾天/雪天/夜间）×特殊事件（施工/事故/道路拥堵/异常驾驶者）的三维矩阵，共计200+个子场景。数据价值评分：某子场景数据量<阈值 OR 模型在该场景表现<目标 → 标记为"高价值数据缺口"→ 自动调整采集触发条件，提高对该场景的采集概率。场景覆盖度报告：每月输出各场景数据覆盖度，让工程团队清晰了解"我们还缺什么数据"，驱动有针对性的路测规划。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['车端采集层','多传感器原始数据（摄像头8路/激光雷达/毫米波雷达/超声波，全量缓存滚动覆盖）+ ADAS系统内部状态（置信度/预测结果/接管事件，<50ms时间戳精度）+ 触发规则引擎（端侧实时判断是否触发数据保存，无需云端指令）+ 数据压缩与加密（H265+硬件加密，安全传输）'],
+['数据湖与管理层','云端数据湖（PB级存储，对象存储+元数据索引）+ 场景自动分类标签（视觉模型预处理，场景类型/天气/时间/是否有异常事件）+ 数据质量检测（模糊/遮挡/传感器异常的自动过滤）+ 数据血缘追踪（每条训练数据可追溯到具体车辆/时间/地点）'],
+['标注平台层','半自动标注工具（模型初标+人工精修，支持2D/3D标注）+ 活跃学习调度（优先推送高价值待标注样本）+ 标注质量管理（一致性检查/重标注流程/标注员绩效追踪）+ 合成数据生成（CARLA/SUMO仿真环境，场景脚本化生成）'],
+['训练与评估层','分布式训练集群（GPU集群，模型训练自动化调度）+ 自动化评估Pipeline（精度指标+Sim-in-Loop+HiL测试全套自动化）+ Shadow Mode评估系统（线上对比，实际路况模型决策差异统计）+ 模型版本管理（完整版本谱系，可回滚）'],
+['OTA部署层','分批部署管控（1%→10%→30%→100%阶梯）+ 实时监控（部署后的核心指标实时追踪，异常自动告警）+ 快速回滚机制（发现重大问题，24小时内全量回滚到上一版本）+ 合规文档自动生成（满足工信部车辆OTA更新管理规定备案要求）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-6个月',title:'数据采集基础设施',desc:'触发式数据采集上线（接管/预警事件自动保存），替代全量上传，节省存储和传输成本80%。数据湖基础版建立，场景自动分类标签。数据质量自动检测（过滤无效数据）。关键里程碑：数据采集触发准确率>90%，高价值数据占比（触发数据中有训练价值的比例）>50%。'},
+{phase:'Phase 2 · 6-12个月',title:'半自动标注与评估Pipeline',desc:'半自动标注平台上线，标注效率提升5倍。活跃学习调度上线，人力优先投入最有价值的样本。自动化评估Pipeline建立（精度指标+Sim-in-Loop）。Shadow Mode测试系统上线。关键里程碑：标注成本降低50%，评估周期从3周缩短到5天。'},
+{phase:'Phase 3 · 12个月+',title:'完整飞轮与自动化闭环',desc:'OTA分批部署系统上线（数据采集→标注→训练→部署全链路自动化）。场景缺口识别自动化（每月输出场景覆盖度报告，驱动路测规划）。合成数据生成规模化（覆盖25+稀有危险场景）。数据飞轮效率目标：从数据采集到模型更新OTA，全周期压缩至6周以内（行业先进水平）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'有价值数据采集效率',target:'存储成本-80%，价值密度+300%'},{name:'标注成本',target:'降低 > 60%（半自动+活跃学习）'},
+{name:'模型迭代周期',target:'< 6周（采集→OTA全链路）'},{name:'Shadow Mode发现问题率',target:'> 95%（上线前发现潜在问题）'},
+{name:'场景覆盖度',target:'200+子场景覆盖率>80%'},{name:'OTA推送成功率',target:'> 99.5%（全量部署）'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'安全',text:'OTA模型更新直接影响车辆行驶安全，任何版本在全量推送前必须经过完整的Shadow Mode验证和分批灰度，工程总监人工审批是不可跳过的环节，不得以"迭代速度"为由压缩安全评估'},
+{type:'warn',label:'数据安全',text:'车辆采集数据包含大量道路环境信息，《汽车数据安全管理若干规定》明确要求境内数据不得出境，训练集群必须部署在境内，与境外供应商合作时需严格隔离数据'},
+{type:'warn',label:'隐私',text:'路面数据中的行人面部、车牌等个人信息必须在上传前完成端侧脱敏处理，不得以"有助于模型训练"为由采集和上传可识别个人身份的原始数据'},
+{type:'info',label:'成本',text:'GPU训练集群是重资产投入（年折旧+电力成本可达数千万），中小车企可优先选择云端弹性GPU方案（按需付费），待数据规模证明ROI后再考虑自建'},
+{type:'ok',  label:'机会',text:'ADAS数据飞轮是最强的竞争壁垒：每增加100万辆在路车辆，数据量增加10倍，模型迭代速度加快，体验进一步领先，领先者越领先的正向循环，早建设者享有不可追赶的优势'}
+]}
+],related:['rd','recall','compliance']}
+// ══════════════════════════════════════════════════════════════
+// 新增场景 A：试驾体验 Agent
+// ══════════════════════════════════════════════════════════════
+,testdrive:{cat:'cabin',catLabel:'车内体验',title:'试驾体验 Agent',
+subtitle:'试驾是购车旅程中转化率最高的单一动作——试驾后成交率提升40-60%。但体验高度依赖销售顾问水平，参差不齐。Agent让每次试驾都成为精心设计的产品体验。',
+sections:[
+{num:'01',title:'产品定位：把试驾从销售行为升级为产品体验',type:'prose',content:`<p>传统试驾以销售顾问为中心——顾问水平高，体验好；水平差，用户转身就走。试驾体验Agent的核心逻辑是：把主导权从"顾问个人能力"转移到"产品本身的智能化呈现"，让每辆试驾车都成为最懂自己的销售员。</p><p><b>试驾放弃购买的三大原因</b>：没体验到最关心的功能（42%）、有疑虑但未得解答（31%）、体验未超预期（27%）。Agent系统性解决这三个问题：个性化路线确保体验关键功能，实时讲解打消疑虑，数据化呈现制造惊喜。</p><p><b>对顾问的赋能而非替代</b>：让顾问把精力放在情感连接和需求挖掘上，系统自动呈现数据，顾问专注于"读懂人"。</p><p><b>数据价值</b>：每次试驾积累的用户反应数据，是产品团队最真实的用户反馈，比焦点小组便宜100倍，比问卷真实100倍。</p>`},
+{num:'02',title:'核心功能模块',type:'steps',steps:[
+'<b>试驾前：个性化路线规划</b>：基于用户画像和关注点，生成个性化路线建议，供顾问执行。关注高速性能→含0-100加速+匝道并线；关注驾驶质感→含连续弯道+减速带；关注智驾能力→含NCP（无保护左转）+高速NOA激活场景。路线推送顾问App，附带每个节点的功能演示提示卡（30字），让顾问在每个节点精准发力。',
+'<b>试驾中：实时车辆数据可视化</b>：中控屏切换"试驾模式"，实时展示当前驾驶状态相关的车辆能力数据。加速时——G值+与竞品对比；弯道时——横向G值+底盘调节可视化；制动时——AEB响应状态；智驾介入时——感知范围可视化+置信度。关键原则：用"百米冲刺的加速感"类比，而非"0.4G"的抽象数字，让非专业用户直觉理解。',
+'<b>试驾中：智能讲解与疑虑解答</b>：顾问可语音或触屏快速调出功能演示说明，无需背话术。预设疑虑解答库：Top 50常见疑虑（续航焦虑/充电速度/ADAS安全性/内饰异响）及对应事实依据，顾问一键调出，有数据有演示，说服力远强于口头承诺。竞品对比快查：预设5-8款主要竞品对比，客观呈现，建立专业感。',
+'<b>试驾后：个性化体验报告</b>：试驾结束5分钟内，自动生成报告推送给用户手机。内容：本次数据摘要（最高车速/最大G值/智驾接管次数/能耗）；关注点匹配分析；未体验功能清单（"泊车辅助未演示，可预约第二次专项体验"）；专属配置推荐（基于试驾偏好）。',
+'<b>试驾数据沉淀</b>：用户反应数据汇总：哪个路段停留最长、哪个功能演示后最兴奋、哪个疑虑最难解答。月度洞察报告：转化率最高的功能组合、各城市/年龄段对哪类功能最敏感，直接指导产品功能优先级和营销话术优化。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['数据准备层','线索画像同步（CRM用户兴趣标签）+ 路线地图库（各城市4-8条标准路线，按功能场景标注）+ 车辆能力数据库（各车型参数/竞品对比/演示脚本）+ 疑虑应答库（Top 50疑虑+标准答法）'],
+['车端实时层','CAN总线实时数据（加速度/制动/转向/悬挂，100Hz）+ 试驾模式HMI（独立轻量级可视化界面）+ ADAS状态采集（激活状态/感知目标/置信度）'],
+['后端处理层','试驾报告自动生成服务（LLM：结构化数据→个性化叙述，<5分钟）+ 顾问App后端（路线推送/提示卡/竞品快查）+ 数据分析管道（试驾行为→产品洞察，每月）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'顾问赋能工具',desc:'试驾提示卡系统上线（顾问App）。竞品快查功能上线（5款主要竞品对比）。疑虑应答库建设（50个高频疑虑标准答法）。关键里程碑：顾问使用率>60%，主观满意度>75%。'},
+{phase:'Phase 2 · 3-7个月',title:'试驾模式与报告',desc:'车机试驾模式上线（需OTA配合）。试驾后个性化报告自动生成，5分钟内推送。个性化路线规划上线。关键里程碑：报告查阅率>60%，试驾到洽谈转化率提升>15%。'},
+{phase:'Phase 3 · 7个月+',title:'数据飞轮',desc:'试驾行为数据系统建立，月度产品洞察报告输出。与产品规划团队数据共享机制建立。多次试驾用户个性化旅程管理。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'试驾后进洽谈转化率',target:'提升 > 15%'},{name:'顾问工具使用率',target:'> 70%（每次试驾）'},
+{name:'试驾报告查阅率',target:'> 60%'},{name:'疑虑解决率',target:'> 80%（用户评价）'},
+{name:'第二次试驾预约率',target:'> 25%（首次未成交）'},{name:'洞察数据产品采纳率',target:'> 50%（月度）'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'数据合规',text:'试驾中展示的车辆性能数据必须经法务和市场合规审核，不能展示未经验证的数据，否则面临虚假宣传风险'},
+{type:'warn',label:'顾问接受度',text:'顾问可能担心被系统监控或替代，上线前必须充分沟通：系统是赋能工具，顾问的情感连接和判断能力是无法被替代的核心价值'},
+{type:'info',label:'硬件依赖',text:'车机试驾模式需要OTA支持，建议优先在新款/主力销售车型落地，形成示范效应'},
+{type:'ok',  label:'机会',text:'试驾行为数据是用户购车决策最真实的行为记录，积累12个月以上后可建立"什么样的试驾组合对什么类型用户有最高转化率"的预测模型'}
+]}
+],related:['sales','leadnurture','cockpit']}
+
+// ══════════════════════════════════════════════════════════════
+// 新增场景 B：用户生命周期运营 Agent
+// ══════════════════════════════════════════════════════════════
+,lifecycle:{cat:'sales',catLabel:'销售服务',title:'用户生命周期运营 Agent',
+subtitle:'卖出一辆车只是关系的开始。用户购车后的5-7年决定续购率、转介绍率和口碑传播。从"卖完交付"到"经营终身"，这是汽车品牌竞争的终极战场。',
+sections:[
+{num:'01',title:'产品定位：把用户资产经营做到极致',type:'prose',content:`<p>大多数车企在用户买完车之后关系基本结束——偶尔有保养提醒、节假日祝福，但这些都是"功能性触达"，不是"关系经营"。理想汽车是国内最早系统性做用户运营的车企，其社区、OTA体验感、车主活动的成功，推动了极高的口碑转介绍率（约30%的订单来自老用户推荐）。</p><p><b>用户生命周期五个关键节点</b>：① 交付蜜月期（0-30天）：对新车最兴奋，最容易建立品牌情感；② 深度使用期（1-12个月）：功能探索，口碑形成的关键期；③ 成熟稳定期（1-3年）：焦点转移到服务体验；④ 换购考虑期（3-5年）：最关键的挽留窗口；⑤ 品牌大使期（持续）：满意度高的用户自发推荐，最低成本获客渠道。每个阶段需要完全不同的运营策略。</p><p><b>商业价值</b>：续购率提升10%，按年销10万辆×均价15万元，相当于每年多1.5亿元收入，且续购用户销售成本不足新客20%。老带新从5%提升至15%，每年多带1万新用户，价值约15亿元。</p>`},
+{num:'02',title:'五阶段运营策略',type:'steps',steps:[
+'<b>蜜月期（0-30天）：点燃热情，建立习惯</b>：交付当天推送"新车欢迎礼包"——前5个必知功能（视频版，2分钟/个）、本城市充电桩地图、车主社群邀请。第1周：每天一个"今日发现"推送，介绍隐藏功能，让用户每天有新惊喜。第2-4周：基于实际使用数据推送个性化内容（"您本周用了3次语音导航，这是进阶用法"）。30天里程碑：推送"我的第一个月"数据总结，形成情感连接和社交分享素材。',
+'<b>深度使用期（1-12个月）：激活价值，促进口碑</b>：月度功能探索主题（3月：春游长途规划；6月：夏季健康；10月：自驾秋色），持续发现新价值。OTA更新仪式感：不只是推送通知，而是"您的车升级了"体验，告诉用户"您的反馈促成了这个功能"，建立共创感。社区运营：识别活跃度高的车主，邀请参与产品共创（新功能内测/体验官）。纠纷预防：AI监控负面行为信号（投诉升级/维权关键词），在矛盾激化前主动介入，成本低10倍。',
+'<b>成熟稳定期（1-3年）：深化服务，提升粘性</b>：主动维保计划：基于行驶数据预测保养节点，提前14天预约提醒。车辆健康月报：推送健康状态摘要，让用户感受到"车被照顾得很好"。增值服务精准推荐：基于使用习惯（常跑高速→行车记录仪升级；有孩子→儿童安全座椅），而非泛推所有配件。购车周年纪念日：推送"一年里的你和车"数据报告，鼓励社交分享。',
+'<b>换购考虑期（3-5年）：主动挽留，把握窗口</b>：换购意向识别：综合信号——车辆里程>8万公里+维修频率上升+竞品App安装+财务改善信号。识别后提前3-6个月进入专项运营通道。换购专项权益：老用户专属置换补贴+新车型优先体验+老车最优估价（对接二手车Agent）。迁移成本可感知：重点呈现"您在我们品牌积累的价值"——座舱助手的个性化记忆、充电优惠历史、服务积分，让换品牌成本显性化。',
+'<b>老带新推荐体系</b>：推荐激励：成功推荐一位新用户成交，获得保养礼包+功能订阅+积分（非单纯现金，维持品牌调性）。推荐工具链：一键生成专属推荐卡，支持微信/小红书分享；全链路追踪。高潜力推荐者识别：社交影响力高+满意度高+车龄1-3年，转化率比普通用户高3-5倍。推荐闭环：被推荐者成交后，双方同时收到"您的朋友已提车"通知，形成社交化正向传播。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['用户数据中台','全渠道行为整合（App/车联网/售后/客服/社区，统一用户ID）+ 生命周期阶段自动识别（规则+ML）+ 健康分实时计算（满意度/活跃度/流失风险三维）+ 换购意向预测（多信号融合，提前3-6个月预警）'],
+['内容与触达层','内容日历引擎（按用户阶段+时间节奏自动编排）+ 个性化内容生成（LLM：数据→情感化叙述）+ 多渠道触达中台（App/车机/短信/企微，全局频控）'],
+['社区与推荐层','车主社区运营后台（活跃度/内容审核/KOC识别）+ 产品共创平台（需求提交/投票/功能回响）+ 推荐码全链路追踪 + 用户LTV预测（未来3年价值预测，驱动资源分配）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'蜜月期运营与推荐体系',desc:'新车交付欢迎礼包上线（7天功能引导序列）。30天里程碑报告自动生成。老带新推荐码系统上线。全局频控规则建立。关键里程碑：30天功能激活率>75%，早期NPS>60，推荐成交转化率>8%。'},
+{phase:'Phase 2 · 4-9个月',title:'全周期运营体系',desc:'换购意向预测模型上线（3-6个月预警）。换购专项权益体系上线。月度个性化内容推送。用户分层运营（高/中/低价值差异化投入）。关键里程碑：3年以上用户换购率提升>15%，老带新占比>10%。'},
+{phase:'Phase 3 · 9个月+',title:'社区生态与品牌大使',desc:'车主社区深度运营（产品共创/线下活动/KOC体系）。用户LTV预测模型上线。与销售/售后/舆情Agent打通完整数据闭环。品牌大使体系成熟：年度用户大会/品牌代言人/用户联合设计配色。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'30天功能激活率',target:'> 80%'},{name:'用户12个月留存率',target:'> 75%'},
+{name:'老带新推荐占比',target:'> 15%（占总成交）'},{name:'3-5年用户续购率',target:'提升 > 15%'},
+{name:'用户NPS（12个月以上）',target:'> 55分'},{name:'换购流失预警准确率',target:'> 70%（提前3个月）'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'骚扰风险',text:'过度推送是最大风险。必须建立严格全局频控（所有渠道合计每周≤3次非服务类触达），并在每条消息提供"调整偏好"入口'},
+{type:'warn',label:'数据整合',text:'全渠道行为整合技术复杂度高，需打通多个遗留系统，是整个项目中工程量最大的部分，需分优先级推进'},
+{type:'info',label:'组织协同',text:'生命周期运营横跨销售/售后/市场/产品多个部门，需要明确主责部门，避免多部门各自触达用户导致体验割裂'},
+{type:'ok',  label:'核心护城河',text:'用户运营数据积累形成不可复制的资产：谁在哪个品牌购车、为什么换购、什么内容最有共鸣，这些洞察竞品无法直接获取'}
+]}
+],related:['sales','leadnurture','aftersales','pr']}
+
+// ══════════════════════════════════════════════════════════════
+// 新增场景 C：智能定价促销 Agent
+// ══════════════════════════════════════════════════════════════
+,pricing:{cat:'ops',catLabel:'运营管理',title:'智能定价促销 Agent',
+subtitle:'把"区域销售总监拍脑袋定促销"升级为"数据驱动的精准定价决策"。在保持品牌价格体系完整性的前提下，用最小让利代价实现最快库存周转，避免价格战螺旋和库存积压两个极端。',
+sections:[
+{num:'01',title:'产品定位：在品牌价值与市场压力间找到精准平衡点',type:'prose',content:`<p>汽车定价是车企最敏感的决策之一。降价过猛——老车主投诉、品牌价值受损（特斯拉多次降价引发大规模维权是最典型案例）；降价不足——库存积压、经销商资金压力大、市场份额丢失。如何在两个极端之间找到精准平衡点，是定价Agent的核心命题。</p><p><b>当前决策四大痛点</b>：信息滞后（销售总监看的是上周数据，市场变化是实时的）；决策主观（促销力度靠经验，无法量化"降1万vs降1.5万的销量差异"）；区域不一致（各地政策不统一，导致跨区套利）；竞品反应慢（竞品降价后响应周期2-4周，市场窗口已关闭）。</p><p><b>核心原则</b>：智能定价Agent不是"自动降价机器"，而是"精准降价顾问"。目标是在满足销量目标前提下最大化毛利，而非最大化销量时最小化价格——两者方向截然不同，产品设计必须体现这个原则。</p>`},
+{num:'02',title:'核心功能模块',type:'steps',steps:[
+'<b>实时市场价格监控</b>：竞品厂商指导价变动（实时）；终端成交价（第三方平台授权数据，每日）；本品牌全国终端优惠动态（经销商上报+神秘顾客+用户UGC三角核验）；区域价格热力图（各城市实际优惠幅度，识别价格洼地和高地）。竞品动态预警：竞品发布新车时，15分钟内生成竞争力分析初稿，推送给定价团队。历史案例查询：支持"上次竞品XX降价时，我们是否跟价、效果如何"的历史数据检索。',
+'<b>需求弹性与促销效果预测</b>：核心问题：降价X元，能带来多少增量销量？需求弹性模型基于历史促销数据（时间/金额/渠道/区域/竞品状态）训练，输出"当前市场环境下，促销1万元的增量销量预测（含置信区间）"。促销边际收益递减：自动识别"过了某个降价幅度，增量销量不再显著提升"的拐点，防止过度让利。促销时机预测：全年最优促销节点建议，自动排布全年促销日历。',
+'<b>库存导向的精准让利建议</b>：精准让利工具：车型×颜色×配置分级让利（主力颜色vs非主流颜色差异化，不影响主力价格体系）。限时限量方案：给特定批次库存设置专属让利（"限10辆，现车享X优惠"），制造稀缺感，不影响后续正常价格。组合促销：当直接降价影响品牌价值时，转为增配或金融方案优惠，等效让利但不影响裸车价格。',
+'<b>竞品应对三方案</b>：竞品降价时，自动生成：① 跟进降价（适用：直接竞品、价格差>5%、成交明显下滑）；② 差异化强调（不跟价，强化己方优势维度传播）；③ 增值服务应对（不降价，推出专属权益包）。每方案附带量化预测和品牌影响评估，供管理层快速决策。响应时效目标：竞品重大变动4小时内完成分析，24小时内出方案，48小时内落地。',
+'<b>价格合规与经销商管控</b>：实时监控全国经销商报价，识别违反价格政策门店；识别区域价格套利路径。老车主保护机制：重大降价前，自动评估"近3个月成交车主数量"和价格敏感用户比例，为管理层提供数据支撑。定价决策留痕：所有价格决策（谁、何时、基于什么、做了什么）完整记录，可追溯审计。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['数据采集层','竞品价格监控爬虫（官网+主要经销商网站，每小时更新）+ 第三方成交价API（懂车帝/汽车之家授权合作）+ 经销商终端报价采集（App上报+神秘顾客系统）+ 宏观经济数据（景气指数/信贷利率/政策补贴，每日更新）'],
+['分析建模层','需求弹性模型（XGBoost+历史A/B测试，按车型/区域/时段分别建模）+ 库存周转预测 + 竞品影响量化（竞品价格变动对己方销量的传导系数）+ 促销ROI预测（让利×增量×边际毛利的净收益估算）'],
+['策略与决策层','促销方案生成器（输入约束条件，输出3个备选方案+量化对比）+ 价格合规检测（实时对比价格政策，违规自动预警）+ 老车主影响评估引擎 + 方案审批工作流（AI出方案→销售总监→CFO审批→执行）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-3个月',title:'市场监控与数据基础',desc:'竞品价格实时监控上线（官方指导价+15分钟重大变动预警）。库存健康度可视化（库龄×颜色×配置细粒度，取代人工Excel）。历史促销数据库建立（36个月数据清洗）。'},
+{phase:'Phase 2 · 3-8个月',title:'弹性模型与促销建议',desc:'需求弹性模型V1上线（先回测验证，准确率>70%才推向决策支持）。精准让利建议上线。竞品应对三方案生成。老车主保护机制上线（降价前强制评估）。'},
+{phase:'Phase 3 · 8个月+',title:'闭环优化与生态联动',desc:'促销A/B测试框架上线（双区域对比验证，持续优化弹性模型）。与经销商运营Agent联动（库存预测×定价联合优化）。与用户生命周期Agent联动（换购期用户专项让利精准推送，非全网公开）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'库存滞销率（>60天）',target:'降低 > 25%'},{name:'促销ROI',target:'让利1元产生增量毛利>1.5元'},
+{name:'竞品价格响应时效',target:'< 24小时出方案'},{name:'价格体系违规门店',target:'< 2%（实时监控）'},
+{name:'需求弹性预测准确率',target:'> 75%'},{name:'区域价格套利事件',target:'减少 > 80%'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'最高危',text:'降价引发老车主维权是最高风险：每次重大价格调整前，必须强制经过老车主影响评估并由管理层（至少销售VP级）审批，绝不能让AI系统自动执行降价'},
+{type:'warn',label:'竞争法',text:'竞品价格监控须在合法范围内（公开信息），不得通过不正当手段获取竞品内部定价信息，反价格垄断合规须法务审查'},
+{type:'warn',label:'经销商关系',text:'终端价格管控可能引发经销商不满，需在合同中明确价格政策框架，以"品牌保护"而非"控制"角度沟通'},
+{type:'ok',  label:'机会',text:'精准定价的长期价值是建立"价格可预期"的品牌信任——让消费者相信品牌不会随意降价，提升购车决策信心，降低"等降价"的观望心态'}
+]}
+],related:['fleet','dealer','insurance','lifecycle']}
+
+// ══════════════════════════════════════════════════════════════
+// 新增场景 D：能源管理 Agent
+// ══════════════════════════════════════════════════════════════
+,energy:{cat:'ind',catLabel:'产业服务',title:'能源管理 Agent',
+subtitle:'动力电池是新能源车的核心资产，占整车成本30-40%。能源管理Agent覆盖电池全生命周期——在役健康管理、退役梯次利用、碳资产变现——构建新能源车企独有的能源价值闭环。',
+sections:[
+{num:'01',title:'产品定位：电池全生命周期价值最大化',type:'prose',content:`<p>一块动力电池的生命历程：出厂→装车使用（8-15年）→退役（容量衰减至80%以下）→梯次利用（储能/低速电动车，再用5-8年）→最终回收（锂/钴/镍材料循环）。在整个链条上都有AI可创造的价值，目前绝大多数车企只关注"装车使用"这一段。</p><p><b>三大价值方向</b>：① 在役电池健康管理（保用户体验、防安全事故、提升残值）；② 退役电池梯次利用（延长电池价值、降低回收成本、符合ESG要求）；③ 碳资产管理（新能源车碳减排量化、碳积分交易、ESG报告）。</p><p><b>战略重要性</b>：随着新能源渗透率提升，退役电池规模将在2025-2030年迎来爆发式增长（预计2030年中国退役电池>200GWh）。此外，欧盟《电池法规》要求2027年起动力电池必须提供"电池护照"，提前建设数据基础设施的车企在出海合规上具有显著先发优势。</p><p><b>商业价值</b>：电池健康管理降低保修成本；梯次利用每块残值增加约3000-8000元（vs直接报废）；NEV碳积分收入（每个积分约300-500元）。按年产10万辆新能源车计算，全链路价值超过10亿元/年。</p>`},
+{num:'02',title:'三大核心模块',type:'steps',steps:[
+'<b>在役电池健康管理（BHM）</b>：实时SOH监测：基于每次充放电的电压/电流/温度曲线，持续计算每辆车的实际健康度（精度目标：SOH误差<2%）。衰减预测：预测未来12/24个月电池容量，让用户和车企提前了解"这块电池还能用多久"。异常预警三级：P1（电池容量单月下降>3%，可能早衰，触发诊断预约）；P2（某电芯压差异常，可能内部短路，立即通知车主检测）；P3（热管理异常，触发高温防护并限制充电速率）。充电策略个性化：日常通勤80%上限保护电池；长途出行前一晚提醒充满。质保期内预警优先：SOH下降至85%前12个月触发预警，给车企主动服务时间。',
+'<b>退役电池梯次利用管理</b>：退役时机判断：SOH<80%时，自动评估梯次利用价值（基于电芯一致性/容量余量/使用历史）。评估维度：电芯一致性（内阻离散<5%为A级，适合储能）、容量余量（SOH 75-80%适合低速电动车）、安全历史（无深度过放/过热记录）。梯次匹配平台：对接储能运营商/低速车制造商/基站运营商，自动匹配最高价值用途；通过电池历史数据（充放电曲线/温度记录/事故历史）为买家提供完整"电池健康护照"，提升交易信任度和溢价空间。全生命周期数字档案：从电池出厂起，记录每一次充放电、维修、SOH检测，形成完整电池履历——这是欧盟《电池法规》"电池护照"的技术基础。',
+'<b>碳资产管理与交易</b>：NEV积分核算：自动统计每款车型的NEV积分，与油车负积分抵消后的净余额，支持向其他车企出售盈余积分。积分出售时机智能判断（结合市场行情预测，选择最优出售时机），每年可增加收益数千万元。碳减排量化：基于全生命周期分析（LCA），量化每辆新能源车vs同级别燃油车的实际碳减排量，生成符合ISO 14064标准的报告，用于ESG报告/自愿碳市场/企业绿色采购证明。政策补贴自动申报：追踪各地新能源补贴政策变化，智能匹配符合申报条件的项目，自动生成申报材料，减少补贴遗漏。',
+'<b>V2G与电网协同</b>：V2G（Vehicle to Grid）让新能源车参与电网调峰——电网高峰时车辆向电网放电获取收益，低谷时低价充电。Agent的协调角色：识别具备V2G能力的车辆；分析用户出行计划（确保V2G不影响出行需求）；接入实时电价（最大化电价差收益）；与电网公司API对接（接受调峰指令并执行）。用户月均收益约50-200元，积少成多有实际吸引力。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['电池数据采集层','BMS实时数据（100ms精度：电压/电流/温度/SOC/充放电状态）+ CAN总线集成（各电芯单体数据，识别pack内一致性）+ 充电桩数据（充电功率曲线，用于精确SOH计算）+ 车联网上传（每次充放电完成后同步特征数据）'],
+['健康分析层','增量容量分析（dQ/dV曲线，识别电池衰减模式）+ SOH预测模型（LSTM+物理模型混合，误差<2%）+ 异常检测（孤立森林+规则引擎，识别早衰/热失控风险）+ 个性化衰减预测（考虑用户使用习惯的个体化模型）'],
+['梯次评估层','电芯一致性计算引擎（内阻/容量离散自动评级）+ 梯次匹配算法（电池状态×应用场景最优匹配）+ 电池健康护照生成（全生命周期数据摘要，标准化格式）+ 区块链存证接口（关键节点数据上链，防篡改）'],
+['碳资产层','NEV积分自动核算引擎（按工信部积分办法规则引擎）+ 碳减排LCA计算（基于能源结构×行驶里程的全生命周期碳核算）+ 政策补贴追踪库（全国各省市补贴政策，每月更新）+ 碳交易市场行情接入'],
+['用户与商业层','用户电池健康App视图（直观展示SOH+预测+充电建议）+ 梯次交易市场对接（买方报价/撮合交易API）+ V2G调度接口（电网公司API标准对接）+ ESG报告自动生成（GRI/TCFD标准）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-6个月',title:'电池健康监测基础',desc:'SOH实时监测上线（基于现有BMS数据，无需额外传感器）。P2/P3级异常预警上线（热失控风险预警，安全优先）。充电策略优化建议推送。电池数字档案建立。关键里程碑：SOH计算误差<3%，P2级预警准确率>90%。'},
+{phase:'Phase 2 · 6-12个月',title:'退役评估与碳资产',desc:'SOH衰减预测模型上线（12个月预测，误差<5%）。退役电池梯次评估系统上线（对接首批梯次利用合作方）。NEV积分自动核算上线（替代人工统计）。碳减排量化报告自动生成（年度ESG支撑）。关键里程碑：梯次评估覆盖退役电池>80%，积分核算准确率100%。'},
+{phase:'Phase 3 · 12个月+',title:'V2G与生态闭环',desc:'V2G商业模式上线（支持双向充电车型，与3家以上电网/储能运营商签约）。电池健康护照系统上线（满足欧盟《电池法规》出口合规）。梯次电池交易平台规模化（月度交易额目标1000万元以上）。碳积分交易智能化（自动建议最优出售时机）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'SOH监测精度',target:'误差 < 2%'},{name:'热失控/早衰预警准确率',target:'> 90%（P2级）'},
+{name:'退役电池梯次利用率',target:'> 80%（vs直接报废）'},{name:'梯次电池溢价',target:'高于直接回收价 > 40%'},
+{name:'NEV积分核算准确率',target:'100%'},{name:'V2G用户月均收益',target:'> 80元'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'安全第一',text:'电池热失控预警是生命安全问题，必须采用"宁可误报，不可漏报"的保守策略，预警阈值偏敏感，误报处理成本远低于一次热失控事故'},
+{type:'warn',label:'法规',text:'梯次利用电池的安全标准和准入要求快速演变（GB/T 34015系列），不同应用场景认证要求不同，商务和合规评估须提前进行'},
+{type:'warn',label:'数据完整性',text:'电池健康护照的价值完全依赖数据真实性，若BMS数据存在篡改（如调里程），评估结论将失准，需建立硬件防篡改+多源交叉验证机制'},
+{type:'info',label:'V2G政策',text:'V2G商业化在国内面临电价结算标准不统一、电网准入门槛等障碍，建议先在政策友好省市（如广东/浙江）试点'},
+{type:'ok',  label:'出海机会',text:'欧盟《电池法规》2027年要求"电池护照"，提前3年建设数字档案系统的国内车企，将在欧洲市场获得先发合规优势，未准备者面临出口障碍'}
+]}
+],related:['charging','rd','compliance','insurance']},parking:{cat:'cabin',catLabel:'车内体验',title:'智能停车 Agent',
+subtitle:'停车是城市驾驶中频率最高、体验最差的环节之一。找车位平均耗时8-12分钟，占城市交通拥堵成本的30%以上。智能停车Agent让"停车"从烦恼变成无感。',
+sections:[
+{num:'01',title:'产品定位：让停车从城市痛点变成无感体验',type:'prose',content:`<p>停车体验差有三个层次的问题：① 找不到车位（信息不透明）；② 付款麻烦（需要找收费员/机器，高峰期排队）；③ 找不到车（大型停车场迷路）。这三个问题都有成熟的技术解法，但目前停车行业数字化程度极低，绝大多数停车场仍靠人工+地闸的方式运营。</p><p><b>与汽车行业的结合点</b>：停车是驾驶旅程的最后一公里，直接影响用户对整体出行体验的评价。对于车企，智能停车Agent是座舱助手和导航Agent的自然延伸；对于车主，它消除了最后一段"不确定性焦虑"；对于停车场运营方，AI带来的翻台率提升和无人化运营是真实的财务收益。</p><p><b>商业模式</b>：① 停车场SaaS服务费（按停车位/月收费，约5-15元/位/月）；② 用户侧无感支付手续费（约0.5-1%）；③ 数据服务（停车行为数据对商业地产/零售选址有极高价值）；④ 广告/会员导流（停车场周边商户导流分成）。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>出发前：目的地停车预规划</b>：导航输入目的地后，自动查询周边500米内停车场的实时空位数量、预计到达时费率、步行距离、是否支持无感支付。推荐策略：不是最近，而是"步行<5分钟+价格合理+空位充足"的综合最优。高峰时段预警：预计到达时间段停车位紧张（历史数据预测），提前提示"目的地附近14:00-16:00停车位紧张，建议提前10分钟出发或选择备选停车场"。预约锁位：与支持预约的停车场打通，提前30分钟-2小时锁定车位，到达即入场，无需绕场寻位。',
+'<b>入场：无感通行与智能引导</b>：车牌识别自动开闸，无需取卡/扫码（与停车场地闸系统API对接）。入场后实时推送停车场内导航——不是地图导航，而是"停车场内部路径"（结合停车场楼层图+空位传感器数据）："前方左转，B2层15区有3个空位，距您约80米"。优先推荐靠近出口/电梯的空位（减少用户在停车场内的步行距离）。新能源车优先推荐充电车位（与充电补能Agent联动，停车期间顺便充电）。',
+'<b>停车中：车辆守护与寻车辅助</b>：停车位置自动记录（GPS坐标+楼层标注+拍照，无需用户手动操作）。停车时长提醒：超出预计停留时间时主动提醒（"您已停车2.5小时，预计还需多少时间？是否延长预约"）。异常告警：停车场监控联动，车辆被刮蹭/碰撞时实时推送通知（需停车场摄像头系统支持）。一键寻车：离开目的地后，App一键显示停车位置和步行路径，在大型地下停车场中用AR导航引导至车辆。',
+'<b>离场：无感支付与数据沉淀</b>：绑定支付宝/微信/信用卡后，车辆驶出时自动完成支付，无需停车缴费——这是对用户体验提升最显著的功能，高峰期可节省5-15分钟。停车账单推送（停车时长/费用/支付方式明细）。月度停车分析：常停地点/月均停车费/停车时长趋势，帮助用户了解出行习惯。积分与权益：与目的地商圈合作，停车后消费可抵扣停车费，提升商户导流价值。',
+'<b>停车场运营方：AI运营大脑</b>：实时车位占用率看板+空位预测（基于历史规律，未来1小时空位预测，用于动态定价）。动态定价引擎：高峰期提价（供不应求），空闲期降价（吸引更多车辆），提升整体翻台率和收益。违停检测（摄像头AI识别占位超时/无牌车辆，自动推送管理员处理）。月度运营报告自动生成（收入/翻台率/高峰时段/用户画像）。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['数据接入层','停车场地闸API（车牌识别/开闸指令，200+主流厂商适配）+ 车位传感器（地磁/超声波，实时占用状态，<30秒更新）+ 摄像头AI（车牌识别/违停检测/刮蹭告警）+ 支付网关（微信/支付宝/银联无感代扣）+ 停车场POI数据库（位置/价格/楼层图/容量）'],
+['实时计算层','空位实时聚合引擎（多停车场数据统一接入，<10秒刷新）+ 停车场内路径规划（楼层图+空位状态的实时最优路径）+ 动态定价算法（供需实时平衡，历史规律+当前占用率）+ 寻车路径计算（GPS+楼层坐标系融合）'],
+['预测与推荐层','到达时空位预测（时序模型：历史数据×当前趋势，提前1小时预测）+ 停车场推荐排序（距离/价格/空位/充电/步行综合评分）+ 用户偏好学习（历史停车地点/偏好楼层/支付习惯）'],
+['用户交互层','导航集成（在导航途中无缝展示停车信息，到达前500米推送入场指引）+ App停车模块（预约/寻车/账单/历史）+ 车机语音（"附近有没有停车场"→语音回答+地图标注）+ 智能手表（无感支付完成提醒/寻车导航）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'无感支付与位置记录',desc:'接入主流停车场无感支付（绑卡自动扣费，消除出场排队）。停车位置自动记录（GPS+拍照）。周边停车场空位实时查询展示。关键里程碑：无感支付绑定用户>30%，停车位置记录使用率>60%。'},
+{phase:'Phase 2 · 4-9个月',title:'智能推荐与场内导航',desc:'停车推荐算法上线（综合评分替代"最近原则"）。场内停车导航上线（需与停车场系统深度对接，选择5-10家重点停车场试点）。预约锁位功能上线。关键里程碑：推荐停车采纳率>50%，场内导航试点停车场满意度>80%。'},
+{phase:'Phase 3 · 9个月+',title:'停车场SaaS与生态',desc:'停车场运营管理后台上线（动态定价+运营报告，面向停车场运营方的B端产品）。与充电补能Agent深度联动（充电车位优先推荐+充电期间停车费减免）。停车数据商业化（脱敏停车行为数据→商业地产/零售选址数据服务）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'无感支付渗透率',target:'> 60%（绑卡用户比例）'},{name:'找车位平均时间',target:'减少 > 50%（8-12分钟→4分钟内）'},
+{name:'停车场空位预测准确率',target:'> 85%（提前1小时）'},{name:'场内导航使用满意度',target:'> 80%'},
+{name:'停车场动态定价收益提升',target:'> 15%（vs固定价格）'},{name:'寻车成功率',target:'> 95%（找到车辆并导航到达）'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'数据接入',text:'停车场行业高度碎片化（全国约5万个大型停车场，设备厂商30+家），API标准不统一，数据接入工程量大，建议优先接入北京/上海/深圳头部商业地产的停车场，形成示范后再规模化'},
+{type:'warn',label:'支付合规',text:'无感代扣属于签约代扣支付，需持有支付牌照或通过持牌机构接入，用户签约协议中必须明确告知扣款规则和金额上限，违规面临央行处罚'},
+{type:'info',label:'精度限制',text:'地下停车场GPS信号差，寻车导航依赖停车场内部定位系统（蓝牙信标/UWB），需要停车场硬件改造，初期建议选择已有室内定位基础设施的高端商业综合体试点'},
+{type:'ok',  label:'机会',text:'停车数据是城市级高价值数据资产：用户在哪里停车（即去了哪里）、停多久（消费时长），对零售选址/商场客流分析/城市规划极有价值，合规商业化潜力巨大'}
+]}
+],related:['navigation','cockpit','charging']}
+
+,autofinance:{cat:'sales',catLabel:'销售服务',title:'汽车金融 Agent',
+subtitle:'汽车金融是车企第二利润来源，但绝大多数车企的金融服务还停留在"填表-等审批-给方案"的人工流程。AI将金融渗透率从30%提升至55%，同时将坏账率降低40%。',
+sections:[
+{num:'01',title:'产品定位：让金融成为销售的加速器而非障碍',type:'prose',content:`<p>汽车金融在中国的渗透率约为35-40%（美国超过85%），提升空间巨大。当前渗透率低的核心原因不是用户不愿意贷款，而是金融申请流程复杂（材料繁多、等待时间长、方案不透明）、销售顾问金融知识不足（不会推荐最优方案）、审批不确定性高（不知道能不能批、能批多少）。</p><p><b>汽车金融Agent的三个核心价值</b>：① 对用户——3分钟出预审结果，个性化方案，透明无隐藏费用；② 对销售顾问——AI推荐最优金融组合，顾问不需要懂复杂金融产品就能准确推荐；③ 对金融机构/车企——精准的信用评估降低坏账，更高的渗透率提升收益。</p><p><b>产品边界说明</b>：汽车金融Agent不做信贷决策（这是金融机构的职责和法律责任），而是做"金融方案匹配+申请流程优化+风险辅助评估"。最终审批决策权必须在持牌金融机构。</p><p><b>商业模式</b>：车企金融公司（如奇瑞汽车金融/大众汽车金融）作为持牌方；AI系统作为中间层优化效率；佣金来源：金融渗透率每提升1个百分点，按年销10万辆×均价15万元×1%的金融利差，年增益约1500万元。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>个性化金融方案智能匹配</b>：传统金融方案是固定的几个套餐（首付20%/30%/全款），无法满足不同用户的资金状况和心理预期。AI方案匹配逻辑：① 收入验证（银行流水/公积金/征信数据，Agent辅助采集和初步分析）；② 还款能力评估（月收入×可负担还款比例→可负担月供范围）；③ 用途偏好识别（用户更在意"首付低"还是"月供低"还是"总利息少"）；④ 多维方案生成：在用户的约束条件下，生成3个最优方案（含36期/48期/60期对比，每方案展示首付/月供/总利息/实际年化利率，完全透明）。方案对比可视化：不是枯燥的数字表格，而是"您每天只需多花X元，就能提前享受这辆车"的直觉化呈现。',
+'<b>快速预审与申请流程自动化</b>：传统金融申请需要3-7个工作日；AI预审流程目标3分钟出结果。预审信息采集：OCR识别身份证/驾照/银行卡（无需手动输入）；人脸活体识别（防冒名申请）；征信授权查询（接入央行征信或百行征信，用户授权后实时拉取）。预审模型输出：① 预批额度（"预计可贷额度X万元"）；② 申请通过概率（"通过率约85%"）；③ 可能影响审批的因素提示（"您的信用报告有2次逾期记录，建议准备收入证明补充材料"）。正式申请一键提交：预审通过后，所有信息自动填入正式申请表，用户只需最终确认签字（电子签）。整个流程从"跑三趟4S店+7天等待"变成"当场申请+当场预审+次日到账"。',
+'<b>风险评估与反欺诈</b>：汽车金融最大的风险是骗贷（虚假材料骗取贷款后不还款/套现）。多维风险模型：① 材料真实性核验（银行流水异常检测：流水与申报收入差距>30%触发核查）；② 行为风险信号（申请时间/设备/位置异常，中介机构代填申请的行为特征识别）；③ 关联图谱分析（同一手机号/银行卡/住址申请多笔贷款的团伙欺诈识别）；④ 车辆价值核验（AI估值确认车辆价值与贷款金额合理，防止虚报车价套取贷款）。风险分级：低风险（自动审批）/中风险（人工复核关键材料）/高风险（完整人工调查）。',
+'<b>贷款全生命周期管理</b>：放款后的贷款管理也是Agent的重要场景。还款提醒：到期前7天/3天/1天多级提醒（短信+App Push+车机消息），大幅降低因遗忘导致的逾期。逾期预测模型：基于还款行为模式，提前30天预测逾期风险高的客户（如本月已有2次消费异常），主动介入提供延期还款方案，防止逾期变坏账。早期逾期处置：逾期1-7天（智能催收：App推送+短信，友好提醒）；逾期7-30天（人工客服介入，协商还款方案）；逾期30天以上（转专业催收团队，Agent提供客户资产画像辅助）。续保联动：贷款车辆必须保持保险，Agent自动监控保险到期提醒并推送续保通道（与保险场景联动）。',
+'<b>销售顾问金融培训助手</b>：金融产品复杂，顾问往往不敢推或推错方案。随时查询助手：顾问可语音问"客户月薪1.5万，想买25万的车，推荐什么方案"，Agent30秒内给出最优方案+说明逻辑。政策变化即时推送：利率调整/促销金融政策（0息/低息），确保顾问永远知道最新政策。金融话术库：常见客户疑虑（"贷款利息太高了"/"我不喜欢欠钱"）的应对话术和说服逻辑。金融绩效看板：顾问的金融渗透率/单笔金融收益，透明可见，激励顾问主动推金融。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['数据采集层','OCR识别引擎（身份证/驾照/银行卡/银行流水，证件类识别准确率>99%）+ 人脸活体识别（防录像/照片攻击，通过率>98%）+ 征信查询接口（央行征信/百行征信/芝麻信用授权查询）+ 反欺诈数据库（黑名单/灰名单联合风控）'],
+['风险评估层','预审评分模型（逻辑回归+XGBoost，特征200+个）+ 材料真实性检测（银行流水异常检测/收入验证模型）+ 团伙欺诈图谱（图神经网络，关联关系识别）+ 逾期预测模型（提前30天预警，精度>75%）'],
+['方案生成层','多目标方案优化引擎（在用户约束下生成Pareto最优金融组合）+ 实际年化利率计算器（IRR计算，完全透明）+ 政策规则引擎（利率上下限/首付比例下限等监管要求实时校验）+ 方案可视化生成（图表+文字自动生成）'],
+['流程自动化层','电子申请表自动填充（预审数据→正式申请无缝转换）+ 电子签约系统（金融合同电子化，法律效力等同纸质）+ 放款指令对接（金融机构核心系统API，放款T+1到账）+ 全流程状态通知（从申请到放款，每步推送）'],
+['生命周期管理层','还款计划管理+多级提醒系统 + 逾期早期预警+智能催收工作流 + 续保监控联动 + 贷款结清证明自动生成（结清后3小时内推送）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'申请数字化与快速预审',desc:'OCR材料采集上线（替代手动填表，减少80%输入时间）。征信授权查询接入（实时拉取征信报告）。预审模型V1上线（3分钟出预审结果，先做简版：年收入/征信评分/申请金额三维判断）。还款提醒自动化上线。关键里程碑：金融申请数字化率>80%，预审准确率（预审通过→实际批准一致率）>85%。'},
+{phase:'Phase 2 · 4-9个月',title:'智能匹配与风控升级',desc:'个性化方案匹配引擎上线（3个最优方案对比，替代固定套餐）。材料真实性检测上线（银行流水异常+收入核验）。逾期预测模型上线（提前30天预警，人工介入降低坏账）。顾问金融助手App上线。关键里程碑：金融渗透率提升>10个百分点，坏账率降低>20%。'},
+{phase:'Phase 3 · 9个月+',title:'全生命周期闭环',desc:'团伙欺诈图谱模型上线（需积累12个月以上关系图谱数据）。智能催收工作流全量上线。与保险理赔Agent联动（贷款车辆保险状态实时监控）。融资租赁/订阅购车新模式支持（月租制的风控和收款逻辑与传统贷款不同，需独立建模）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'金融申请平均时长',target:'< 10分钟（vs当前2-3天）'},{name:'预审通过率预测准确率',target:'> 85%'},
+{name:'金融渗透率提升',target:'> 10个百分点（3年内）'},{name:'坏账率降低',target:'> 30%（vs人工风控基准）'},
+{name:'逾期预测准确率',target:'> 75%（提前30天）'},{name:'顾问金融助手日活率',target:'> 75%'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'持牌经营',text:'汽车金融业务（放贷/收贷）须由持牌金融机构（汽车金融公司/银行/消费金融公司）经营，AI系统只能提供辅助工具，不能作为信贷决策主体，任何最终审批必须由持牌机构的授权人员执行'},
+{type:'warn',label:'征信数据',text:'征信数据属于最高级别敏感个人信息，查询必须获得用户明确书面授权，不得过度查询（每次申请只查一次），查询记录本身会影响用户征信评分，须向用户清晰告知'},
+{type:'warn',label:'催收合规',text:'催收行为受《个人信息保护法》《互联网金融逾期债务催收自律公约》严格约束，不得在22:00-8:00联系、不得联系非债务人、不得恐吓威胁，AI催收话术须经法务审查'},
+{type:'info',label:'数据质量',text:'信用评估模型的准确性高度依赖训练数据的质量和多样性，初期数据量不足时应保守设置审批阈值，随着数据积累逐步优化，避免因模型不准确导致大量坏账或误拒优质客户'},
+{type:'ok',  label:'机会',text:'汽车金融数据与UBI保险、用户生命周期运营的三向联动：良好还款记录用户给予保费折扣，换购期用户给予专属续贷方案，形成车企金融生态的正向循环'}
+]}
+],related:['sales','insurance','lifecycle','dealer']}
+
+,supplychain:{cat:'ops',catLabel:'运营管理',title:'供应链协同 Agent',
+subtitle:'汽车供应链是全球最复杂的制造供应网络之一——一辆整车涉及2万+零部件，来自500+供应商，横跨全球几十个国家。供应链断裂的代价是停产，每天损失可达数千万元。',
+sections:[
+{num:'01',title:'产品定位：把供应链从被动响应变成主动管控',type:'prose',content:`<p>2021年的芯片短缺让全球汽车行业减产数百万辆，直接经济损失超过2000亿美元。这场危机深刻揭示了汽车供应链的脆弱性：过度集中的供应商、极低的库存安全垫、对地缘政治风险的严重低估。Agent能做的不是消除这些风险，而是让车企"在风险发生前60天就看见它，在停产发生前有足够时间做出应对"。</p><p><b>汽车供应链的特殊复杂性</b>：① 多层级（Tier 1直供商500家，Tier 2间接供应商5000家以上，但断链风险往往来自Tier 2/3）；② 高定制化（零部件按车型定制，无法临时替换）；③ 长账期（汽车行业账期90-180天，资金占用大）；④ 地缘敏感（芯片/稀土/锂电材料高度集中在少数国家/地区）。</p><p><b>三大核心价值</b>：① 风险可见（知道危险在哪里，比不知道强100倍）；② 响应提前（从"停产后救火"变成"风险信号出现就启动预案"）；③ 成本优化（智能询比价、付款条件优化、库存最小化）。</p><p><b>商业价值</b>：避免一次供应链断裂导致的停产，按每天减产100辆×均价15万元计算，每天损失1500万元。若预警系统能提前60天发现风险，给出足够缓冲时间，ROI远超系统建设成本。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>供应商多维健康监控</b>：对500+核心供应商（Tier 1）实时监控7类指标：① 交期履约率（近3个月交货准时率，<95%触发黄色预警，<90%红色预警）；② 质量PPM（每百万件不良品数，行业标准<50PPM，超标触发预警）；③ 产能利用率（>95%说明产能紧张，可能影响后续交付；突然下降>20%可能是经营问题）；④ 财务健康度（应付账款周转/流动比率/净利率，通过商业数据库获取）；⑤ 地缘政治风险（工厂所在国家/地区的政策风险指数，含关税政策/地区冲突/自然灾害）；⑥ 单一来源依赖度（某零部件是否只有一家供应商，是最高风险信号）；⑦ Tier 2穿透（核心Tier 1供应商的主要原材料供应商风险，芯片/锂电材料尤为重要）。',
+'<b>智能询比价与采购优化</b>：传统询比价流程：采购员邮件发询价表→供应商回复→人工汇总比对，耗时1-3周，且比较维度不完整（只看价格，忽略交期/质量历史/付款条件）。AI询比价流程：结构化询价表自动发出（含技术规格/交期/质量要求/付款条件）→供应商在线填写→AI自动多维评分对比（价格权重40%+交期权重25%+质量历史权重20%+付款条件权重15%）→输出推荐供应商排名及理由。价格合理性检测：基于历史价格数据库（按零部件类型/材料成本/工艺复杂度建立基准），识别异常高报价（可能回扣风险）和异常低报价（可能质量风险）。付款条件优化：根据供应商财务健康度，动态建议最优付款条件（财务状况差的供应商给予提前付款折扣换取价格优惠，财务健康的供应商争取更长账期）。',
+'<b>断链风险预警与应急预案</b>：风险分级评估：每个零部件的供应风险综合评分（单一来源+供应商健康+地缘政治+库存天数），输出高/中/低三级风险热力图，让采购团队清晰看到"哪些零部件是定时炸弹"。预警触发机制：供应商财务危机信号（股票连续下跌/新闻负面报道/法院判决记录）→系统自动推送给采购总监；某地区出现影响供应商的自然灾害/政治事件→即时推送受影响供应商清单和影响量评估。应急预案库：对每个高风险零部件，预设应急预案：① 备用供应商名单（含认证状态/评估周期/价格差异）；② 紧急替代方案（国产替代/进口替代/设计变更可行性评估）；③ 安全库存建议（基于风险等级动态调整安全库存天数）。',
+'<b>碳足迹溯源与ESG合规</b>：欧盟CBAM（碳边境税）和欧盟《电池法规》要求供应商级别的碳排放数据，这是中国车企出海面临的新硬性要求（预计2026年全面实施）。碳足迹数据采集：向供应商发送标准化碳排放数据采集表（Scope 1/2排放，按零部件/年度），系统自动汇总计算整车碳足迹。供应商碳评级：基于供应商的碳排放强度（单位产值碳排放），给予绿色/黄色/红色评级，作为供应商选择的参考维度之一。碳减排路径规划：识别碳排放占比最高的供应商和零部件，协助制定供应链脱碳路径（优先从高碳强度供应商切换到低碳强度供应商）。LCA报告自动生成：整合供应链碳数据，自动生成符合ISO 14040标准的产品生命周期分析报告，支持ESG披露和出口合规。',
+'<b>供应商协同门户</b>：传统供应商沟通靠邮件+电话，信息分散，版本混乱。统一协同门户：供应商在线查看订单/排产计划/变更通知（实时）；供应商在线提交交期确认/质量异常报告/发票；双向数据可见性（车企看到供应商库存和产能，供应商看到车企未来3个月排产计划）——这种透明度是减少"突然断货"的根本解法。EDI集成：与主要供应商系统打通（EDI报文标准），实现订单/发货/收货数据自动同步，消除人工录入错误。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['数据采集层','供应商ERP/MES系统对接（EDI：EDIFACT/X12标准，订单/发货/库存）+ 供应商协同门户（Web端，供应商主动上报）+ 外部数据接入（商业信息数据库：天眼查/彭博财务数据/地缘政治风险指数）+ 新闻舆情监控（供应商相关负面新闻实时抓取）+ 碳数据采集系统（标准化表单+数据验证）'],
+['风险分析层','供应商健康评分引擎（7维指标加权，每日更新）+ 地缘政治风险模型（国家级风险指数+行业敏感度权重）+ 供应链图谱（Tier 1-Tier 3多层级关系建模，传导路径分析）+ 财务预警模型（财务比率异常检测，Altman Z-score等预警模型）'],
+['优化计算层','多目标询比价评分引擎（价格/交期/质量/付款多目标Pareto最优）+ 价格合理性基准库（按零件类型/材料/工艺的历史价格分布）+ 安全库存优化模型（基于供应风险等级×需求波动×补货周期的动态计算）+ 碳足迹汇总计算（Scope 3供应链碳排放核算）'],
+['预警与协同层','多级预警规则引擎（供应商健康/地缘政治/库存水位的分级告警）+ 应急预案管理库（高风险零部件的备选方案，版本管理）+ 供应商协同Portal（订单可视化/变更通知/质量异常处理工作流）+ 采购审批工作流（询比价结果→采购总监审批→执行）'],
+['报告与决策层','供应链风险热力图（CEO/CPO可见的全局风险视图）+ 采购绩效分析（价格节约/交期表现/质量趋势）+ LCA/ESG报告自动生成（ISO 14040/GRI标准）+ 自然语言查询（"最近3个月哪些供应商交期最差"→Agent自动分析回答）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-6个月',title:'供应商数据整合与可视化',desc:'供应商基础信息库建立（500+核心Tier 1供应商统一入库：联系人/工厂位置/主供零件/认证状态）。交期履约率和质量PPM数据接入（从现有ERP系统提取，替代人工Excel汇总）。供应商健康度评分基础版上线（交期+质量双维，先做简版）。供应商协同门户V1上线（订单查询+发货确认）。关键里程碑：数据覆盖率>90%核心供应商，人工数据收集工作量降低>60%。'},
+{phase:'Phase 2 · 6-12个月',title:'风险预警与询比价优化',desc:'7维供应商健康评分全量上线。地缘政治风险模型上线（高风险国家/地区供应商专项监控）。智能询比价系统上线（多维评分替代人工汇总）。价格合理性检测上线（基准价格库建立需3个月数据积累）。碳足迹数据采集启动（向主要供应商发送标准化碳数据采集表）。'},
+{phase:'Phase 3 · 12个月+',title:'预测性风险与ESG合规',desc:'供应链多层穿透（Tier 2/3风险映射）。应急预案库全量建立（高风险零部件100%有备选方案）。LCA碳足迹报告自动生成（满足欧盟CBAM出口合规要求）。与研发Agent联动（供应链风险反哺设计端：某材料/供应商风险高，触发设计变更评估）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'供应链风险预警提前量',target:'> 60天（vs当前停产后发现）'},{name:'询比价周期',target:'< 3天（vs当前1-3周）'},
+{name:'供应商数据覆盖率',target:'> 95%（核心Tier 1）'},{name:'价格节约率',target:'> 3%（vs基准价格）'},
+{name:'单一来源依赖零件',target:'高风险品类降低 > 30%'},{name:'碳足迹数据覆盖率',target:'> 80%（Scope 3直接供应商）'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'数据获取',text:'供应商往往不愿意透露财务数据和产能信息（视为商业机密），数据采集须通过合同条款明确要求，或依托"数据换服务"（提供协同门户工具换取数据授权）的商业逻辑'},
+{type:'warn',label:'Tier 2穿透',text:'Tier 2/3供应商数据获取极其困难，无法直接要求其接入系统。建议先从Tier 1供应商要求提供主要原材料来源信息，间接建立Tier 2风险视图，全面穿透是长期目标'},
+{type:'info',label:'碳数据质量',text:'目前国内供应商普遍缺乏完善的碳排放统计能力，碳数据采集初期质量参差不齐。建议提供标准化填报工具+培训支持，并设置数据合理性校验（离群值检测），逐步提升数据质量'},
+{type:'ok',  label:'机会',text:'碳足迹溯源能力是出海欧洲的战略性竞争优势：CBAM将从2026年起对高碳产品征税，提前3年建立供应链碳数据体系的车企，不仅合规，还能通过低碳供应链构建差异化竞争优势'}
+]}
+],related:['rd','recall','compliance','overseas']}
+
+,hrops:{cat:'ops',catLabel:'运营管理',title:'HR人才管理 Agent',
+subtitle:'汽车行业正经历最大规模的人才结构转型——从机械工程师到软件工程师，从流水线工人到AI训练师。智能驾驶工程师供需比约1:8，而传统岗位面临大规模转型。HR Agent帮助车企在这场人才战争中赢得先机。',
+sections:[
+{num:'01',title:'产品定位：应对汽车行业最大规模的人才结构转型',type:'prose',content:`<p>传统汽车行业的HR工作重心是"管理"（薪酬/考勤/劳动关系）。新能源智能汽车时代，HR的核心命题变成了"竞争"——如何在与科技公司的人才争夺战中赢得关键技术人才，同时管理好传统岗位人员的转型。</p><p><b>三大紧迫挑战</b>：① 技术人才极度稀缺（自动驾驶/大模型/嵌入式软件工程师年薪80-200万，供需比1:8，且主要被大厂/科技公司竞争）；② 传统人才过剩与转型（燃油车产线工人、传统机械工程师面临岗位萎缩，大规模内部转岗培训是必要但极难的工程）；③ 人才流失风险高（关键技术人才被挖角，一个团队被整体挖走的案例在行业屡见不鲜）。</p><p><b>HR Agent的三个核心价值</b>：① 智能招聘（找到合适的人，比竞品快）；② 离职预测（在关键人才离职前3-6个月发出预警，主动留人）；③ 组织健康度监测（从数据中发现团队士气/效率问题，管理层可见）。</p><p><b>产品边界</b>：HR Agent不替代HR专业判断，而是让HR从"处理日常事务"解放出来，聚焦"人才战略决策"。所有涉及员工的数据处理须严格遵守《个人信息保护法》。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>智能招聘与人才匹配</b>：汽车行业技术岗位JD复杂，候选人简历质量参差不齐，人工筛选效率极低。AI简历筛选：技术岗位简历解析（提取学历/工作年限/技术栈/项目经历/论文专利等结构化信息），与JD要求的多维匹配评分（技术匹配度/行业背景/稳定性预测）。稀缺人才主动猎取：对于自动驾驶/大模型等稀缺岗位，AI从LinkedIn/知乎/GitHub/学术数据库主动发现潜在候选人（依据论文发表/开源贡献/技术演讲），生成个性化触达消息。面试助手：技术面试问题库（按岗位级别/技术方向自动生成面试题）；面试反馈结构化录入（面试官评价自动汇总对比）；候选人情绪分析（视频面试中的肢体语言和语气分析，辅助判断，非决策依据）。入职预测：Offer发出后，预测候选人最终接受率（基于历史数据和候选人行为信号），提前准备备选方案。',
+'<b>关键人才离职预测与留人干预</b>：一个关键技术人员离职的综合成本（离职+招聘+培训+等待）约为年薪的1.5-3倍，且关键技术团队被挖角是汽车行业最大的人才风险之一。离职预警信号（多维融合）：绩效信号（近期绩效下滑/目标完成率降低）；行为信号（会议参与度下降/代码提交频率降低/OA系统使用减少）；外部信号（LinkedIn资料更新/技术社区活跃度变化）；满意度信号（调研分数下降/负面反馈增加）；时间节点风险（奖金发放后90天内/年终考核后/竞品新产品发布后）。预警分级：高风险（3个月内可能离职）→推送给直属领导和HRBP，建议主动1-1沟通。干预工具箱：调薪分析（与市场薪资对标，识别薪资倒挂问题）；发展路径可视化（该员工的晋升机会和发展路径是否清晰）；项目分配建议（是否有更有挑战性的项目可以分配）。',
+'<b>传统岗位转型管理</b>：随着电动化，燃油车相关岗位（发动机/变速箱工程师）面临萎缩，而新能源/智能驾驶岗位大量缺口。内部转岗匹配：分析现有员工的技能图谱（现有技能×新岗位需求的重叠度），识别高转型潜力员工（如机械工程师转嵌入式开发工程师的适配度评估）。个性化培训路径规划：基于员工现有技能和目标岗位的差距，生成个性化培训计划（在线课程/内部轮岗/外部认证），并追踪完成进度。转型成功率预测：基于历史内部转型案例，预测特定员工转型成功的概率，帮助HR优先投入资源在高潜力转型候选人上。',
+'<b>组织健康度监测</b>：组织健康问题（团队士气低落/跨部门协同差/管理层信任度下降）往往是人才流失和绩效下降的前兆，但传统管理方式很难及时发现。匿名调研驱动：季度员工满意度调研（5题精简版，完成率更高）+实时情绪追踪（关键节点如绩效季/调薪季后的快速脉动调研）。组织网络分析（ONA）：基于邮件/会议/协同文档的匿名化协作数据，分析部门间的信息流动效率（哪些部门是信息孤岛）、关键连接者（离职高风险）、团队协同健康度。管理层人才密度分析：各部门的人才结构（高潜人才/核心人才/普通员工的比例），识别人才分布不均衡的问题（重要业务部门人才密度不足）。薪酬竞争力实时监测：与外部薪酬数据库（Mercer/任仕达）对接，识别薪资倒挂最严重的岗位和团队（最高离职风险）。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['数据采集层','ATS系统（候选人简历库/面试记录）+ HRIS系统（员工信息/绩效/考勤/培训记录）+ 匿名行为数据（OA系统/协同工具使用频率，严格脱敏）+ 外部数据（LinkedIn API/薪酬数据库/行业人才市场报告）+ 调研系统（问卷发放/回收/分析）'],
+['分析模型层','简历解析与匹配模型（NLP+技能图谱，技术岗位专用）+ 离职预测模型（多信号融合，Gradient Boosting，提前3-6个月预警）+ 组织网络分析引擎（图分析，协作关系可视化）+ 转型适配度预测（技能迁移相似度计算）'],
+['洞察生成层','人才风险热力图（部门级别，高离职风险/低满意度/薪资倒挂三维可视化）+ 个性化培训路径规划引擎 + 薪酬竞争力对标报告（按岗位族/层级/城市） + 自然语言HR查询（"研发部门近3个月离职率如何，主要是什么岗位"→Agent回答）'],
+['隐私保护层','最小化数据原则（行为数据只用统计特征，不存储原始内容）+ 员工知情权（告知哪些数据被分析，不做隐秘监控）+ 数据访问分级（离职预警只推送给HRBP和直属领导，不对整个HR团队开放）+ 数据保留期限（离职后员工数据按法规要求期限删除）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-4个月',title:'招聘效率与数据基础',desc:'AI简历筛选上线（技术岗位优先，减少60%筛简历时间）。HRIS数据整合（员工信息统一入库，替代各部门独立Excel）。季度满意度调研数字化（替代纸质问卷，实时出结果）。薪酬竞争力基础对标（关键岗位族市场薪资基准）。关键里程碑：招聘周期缩短>30%，薪酬倒挂识别覆盖率>80%。'},
+{phase:'Phase 2 · 4-9个月',title:'离职预测与组织健康',desc:'离职预测模型上线（基础版：绩效+调研+时间节点三维信号，先不用行为数据以减少员工顾虑）。组织健康度看板上线（部门级别满意度+人才密度+流失率三维视图）。传统岗位转型匹配系统上线。关键里程碑：关键人才离职预测准确率>65%，主动干预后留人成功率>40%。'},
+{phase:'Phase 3 · 9个月+',title:'组织网络分析与战略人才',desc:'组织网络分析上线（协作数据匿名分析，需员工充分知情同意）。稀缺人才主动猎取系统上线（技术社区数据挖掘）。内部人才市场（内部岗位优先向现有员工开放，减少外部招聘成本）。HR数字孪生（模拟不同人才策略下的组织能力变化）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'技术岗位招聘周期',target:'缩短 > 35%'},{name:'关键人才离职预警准确率',target:'> 65%（提前3个月）'},
+{name:'薪酬倒挂岗位数量',target:'降低 > 50%（季度内整改）'},{name:'内部转岗成功率',target:'> 60%（转岗后12个月留存）'},
+{name:'员工满意度调研参与率',target:'> 80%'},{name:'HR人员人均服务员工数',target:'提升 > 30%'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'隐私与信任',text:'员工行为数据分析是最敏感的企业内部数据，一旦员工感知到"被监控"，将严重损害企业信任文化和雇主品牌。必须坚持最小化原则、匿名化处理、充分知情同意，任何分析结果只用于"帮助员工发展和留任"，不用于负面惩处依据'},
+{type:'warn',label:'劳动法',text:'离职预测数据不得直接作为解除劳动合同的依据（违反《劳动合同法》），只能作为主动沟通和留人干预的参考，法务需在使用规范中明确边界'},
+{type:'warn',label:'数据跨境',text:'在华外资车企的员工数据（尤其是中国员工的个人信息）向境外总部传输，须经过数据出境安全评估，中国员工数据原则上不得出境存储处理'},
+{type:'info',label:'变革管理',text:'HR数字化往往遭到HR部门自身的抵触（担心被替代），上线前须明确"AI是赋能工具，HR专业判断不可被替代"的定位，并给HR团队提供充分的培训和过渡期'},
+{type:'ok',  label:'机会',text:'汽车行业人才竞争是长期战略议题，率先建立数据驱动的人才管理体系的车企，在稀缺技术人才的吸引和留存上将建立难以追赶的先发优势，这种人才密度优势最终会转化为产品竞争优势'}
+]}
+],related:['rd','adas','compliance']}
+
+,finops:{cat:'ops',catLabel:'运营管理',title:'财务智能 Agent',
+subtitle:'车企CFO面临的挑战：多品牌/多区域/多币种的财务数据分散在数十个系统，月度合并报表需要3周人工处理，成本预测误差高达15-20%。财务智能Agent让CFO从"看历史"变成"管未来"。',
+sections:[
+{num:'01',title:'产品定位：让CFO从数据整理者变成战略决策者',type:'prose',content:`<p>汽车行业的财务复杂度是制造业中最高的——整车厂同时运营整车业务/零部件业务/金融业务/出行业务，跨越数十个国家市场，涉及数百家合并主体，还有极为复杂的成本核算（每辆车2万+零部件，成本分摊规则复杂）。这使得传统财务工作大量时间花在"数据整理"上，而非"分析决策"上。</p><p><b>三大核心痛点</b>：① 月结周期长（月度合并报表人工处理需2-3周，董事会看到数据时已落后近一个月）；② 预测不准（销量预测/成本预测误差大，导致资源错配和现金流紧张）；③ 管理层信息不对称（一线业务看不到财务影响，财务团队看不到业务真实运营状态）。</p><p><b>财务智能Agent的三个价值层次</b>：① 效率层（自动化重复性财务工作，月结周期从3周缩短至1周）；② 洞察层（实时可见财务状况，而非月末才知道）；③ 预测层（基于AI的精准成本和现金流预测，指导战略决策）。</p><p><b>重要边界</b>：财务Agent不做财务决策，也不替代注册会计师的专业判断。它是CFO和财务团队的强力工具，所有对外发布的财务数据仍须经人工审核和会计师事务所审计。</p>`},
+{num:'02',title:'核心功能模块详细拆解',type:'steps',steps:[
+'<b>智能成本预测与管控</b>：汽车行业成本管理的核心挑战是"单车成本"的精确核算和预测（材料/制造/物流/质量成本四大类，每类都有复杂的分摊规则）。AI成本预测引擎：基于已签订单+排产计划+原材料价格（实时接入大宗商品期货价格：铜/铝/锂/钢）+汇率（多币种采购成本实时折算），提前3-6个月预测单车成本变化。BOM成本联动：物料清单(BOM)变更（工程变更/供应商切换）自动触发成本影响测算，工程师在提出变更时就能看到"这个变更会让单车成本增加/降低X元"。成本偏差实时预警：实际成本vs预算成本偏差>3%时自动告警，并追溯偏差根因（是某个零件涨价、还是产量不及计划导致固定成本分摊上升、还是汇率变动）。价格谈判支撑：在与供应商谈判前，Agent自动提供该零部件的成本构成分析（原材料+人工+制造+利润各占比），给出合理价格区间，支持谈判团队有理有据。',
+'<b>现金流预测与资金管理</b>：汽车行业资金规模巨大（整车厂年资金流转数百亿），现金流预测的准确性直接影响融资决策和投资安排。滚动现金流预测：每周更新未来12个月的现金流预测（基于：已确认订单的收款计划+供应商付款条件+在建项目资本支出+薪酬/运营费用）。资金缺口预警：预测未来90天内现金余额低于安全线（可配置）时，提前预警并触发融资安排建议（短期贷款/商业票据/供应链金融方案对比）。付款时机优化：在资金充裕时提前付款换取供应商折扣，在资金紧张时合理延后非关键付款，动态优化资金使用效率。跨境资金管理：多币种头寸监控（外汇敞口实时计算），汇率波动对利润的影响实时可见（"人民币升值1%对今年利润影响约X亿元"），触发汇率对冲建议。',
+'<b>自动化月度合并与报告</b>：月度合并报表的传统做法：各子公司提交数据→财务团队汇总→调整内部抵消→最终合并，人工耗时2-3周，且容易出错。自动化合并流程：子公司财务数据自动汇总（API对接各子公司ERP）→内部交易自动识别和抵消（AI识别关联方交易）→多准则适配（中国会计准则GAAP/国际财务报告准则IFRS并行计算）→合并报表自动生成（利润表/资产负债表/现金流量表+附注）。合并周期：从人工3周缩短至3-5天（首次上线），最终目标T+5（月末后5个工作日完成合并）。智能财务分析报告：不只是数字表格，而是"本月利润比上月下降X%，主要原因是原材料成本上涨（贡献X%）和销量不及预期（贡献X%），抵消了降本措施的正面影响（贡献X%）"——Agent自动生成董事会可读的叙述性财务分析。',
+'<b>全员财务可见性（Finance for All）</b>：财务信息不应只在CFO和财务部门流转。让业务部门负责人实时看到本部门的财务表现，是驱动利润导向决策的关键。业务单元财务仪表盘：每个事业部/品牌/区域的负责人，可以实时查看本单元的收入/成本/利润/现金贡献，以及与预算的偏差和趋势。用自然语言问财务问题："今年Q3我们这个品牌的单车毛利率为什么比Q2低了2%？"——Agent自动分析数据并给出叙述性解释，无需等待财务团队出报告。成本决策模拟器：项目负责人可以用自然语言模拟"如果我把某个零部件从国产换成进口，对本车型的BOM成本和毛利有什么影响"——Agent实时计算并展示影响。'
+]},
+{num:'03',title:'技术架构',type:'arch',rows:[
+['数据集成层','ERP系统对接（SAP/Oracle/用友，API或批量数据同步）+ 大宗商品价格实时接入（Bloomberg/万得资讯，铜/铝/锂/钢/贵金属）+ 外汇汇率实时行情（央行/彭博外汇数据）+ 银行账户数据（网银直联，资金头寸实时可见）+ 供应商付款条件数据库'],
+['计算引擎层','BOM成本计算引擎（多层级BOM展开+成本分摊规则+产量计划融合）+ 多准则财务计算（GAAP/IFRS双准则并行，差异自动标注）+ 内部交易识别与抵消（关联方交易智能匹配）+ 外汇敞口计算模型（多币种净头寸实时汇总）'],
+['预测分析层','成本预测模型（原材料期货价格+汇率+供应商报价趋势的多因子回归）+ 现金流预测（销售预测×收款节奏+付款计划的滚动12个月预测）+ 盈利能力情景模拟（Monte Carlo模拟不同市场条件下的利润区间）'],
+['洞察与呈现层','CFO驾驶舱（关键财务指标实时看板：收入/利润/现金/ROE实时展示）+ 智能财务叙述生成（LLM：结构化数据→董事会级别分析报告）+ 自然语言财务查询（非财务人员可用日常语言查询财务数据）+ 预算vs实际偏差根因自动分析']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-6个月',title:'数据整合与报表自动化',desc:'核心ERP系统对接（SAP/Oracle数据自动采集，替代人工导出）。月度合并报表自动化（目标合并周期从3周缩短至1周）。CFO财务驾驶舱V1上线（关键指标实时可见）。大宗商品和汇率实时接入（成本敏感性分析基础）。关键里程碑：月度合并报表准确率>99.5%，合并周期缩短>50%。'},
+{phase:'Phase 2 · 6-12个月',title:'预测能力与业务洞察',desc:'成本预测模型上线（3-6个月滚动预测，目标误差<8%）。现金流12个月滚动预测上线（目标3个月误差<10%）。BOM成本联动（工程变更自动触发成本影响测算）。业务单元财务仪表盘（向事业部负责人开放）。关键里程碑：成本预测准确率提升，资金缺口预警提前量>60天。'},
+{phase:'Phase 3 · 12个月+',title:'财务智能全面落地',desc:'自然语言财务查询全员开放（非财务人员可直接查询和分析）。盈利情景模拟器上线（支持战略决策模拟）。AI财务分析报告自动生成（董事会报告自动化）。与定价Agent联动（定价决策实时反映利润影响）。与供应链Agent联动（供应商价格变化自动触发成本影响分析）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'月度合并报表周期',target:'< 5个工作日（vs当前3周）'},{name:'成本预测准确率',target:'误差 < 8%（3-6个月滚动）'},
+{name:'现金流预测准确率',target:'3个月误差 < 10%'},{name:'财务异常预警响应时间',target:'< 1小时（vs当前次月发现）'},
+{name:'财务人员效率提升',target:'> 40%（重复工作自动化）'},{name:'业务部门财务自助查询率',target:'> 60%（不需要找财务出数）'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'审计合规',text:'AI自动化生成的财务报告不能替代注册会计师审计，对外披露的财务数据（上市公司年报/半年报/季报）必须经由具有资质的会计师事务所独立审计，AI工具只用于内部管理报告'},
+{type:'warn',label:'数据安全',text:'财务数据是最高机密级别的企业数据，AI系统的访问权限须严格按照"need-to-know"原则分配，系统本身的安全标准须达到金融级别（数据加密/访问审计/异常登录检测）'},
+{type:'warn',label:'模型依赖',text:'成本和现金流预测模型在极端市场条件下（黑天鹅事件）准确性会显著下降，CFO须理解模型的局限性，对AI预测保持适度怀疑，重大决策须结合人工判断和多情景分析'},
+{type:'info',label:'ERP集成',text:'大型车企ERP系统通常高度定制化，接口文档不完整，集成工程量容易超预期2-3倍，建议逐系统评估接口可行性，按数据价值优先级排序接入顺序'},
+{type:'ok',  label:'机会',text:'财务智能Agent最大的战略价值是"实时经营"能力的建立：当管理层能在每天看到精准的收入/成本/现金流状态，决策速度和质量都会大幅提升，这是传统"月结"文化下无法实现的竞争优势'}
+]}
+],related:['pricing','supplychain','compliance','autofinance']}
+
+,overseas:{cat:'ind',catLabel:'产业服务',title:'出海合规 Agent',
+subtitle:'2024年中国汽车出口超过500万辆，成为全球第一大汽车出口国。但出海不只是物流问题，是复杂的多市场合规挑战：欧盟GDPR、CBAM碳边境税、整车型式认证、数据本地化要求……每个市场都是一套全新的规则体系。',
+sections:[
+{num:'01',title:'产品定位：让出海合规从障碍变成竞争优势',type:'prose',content:`<p>中国车企出海面临的合规挑战与国内完全不同，且呈现出越来越复杂的趋势：欧盟2023年启动对中国电动车补贴调查，加征关税；CBAM碳边境税2026年全面实施，对碳足迹要求严格；GDPR对车联网数据采集的要求远超国内标准；各国整车认证（欧盟WVTA/美国FMVSS/澳大利亚ADR）的技术标准差异显著。在这个背景下，合规能力本身就是出海的核心竞争力——合规快的车企可以比竞品早6-18个月进入目标市场。</p><p><b>出海合规的五大支柱</b>：① 整车认证（进入市场的门票）；② 数据合规（GDPR/数据本地化）；③ 碳足迹合规（CBAM/电池法规）；④ 贸易合规（关税/反补贴/原产地规则）；⑤ 本地化运营合规（劳动法/消费者保护/广告法规）。每个支柱都有专业门槛，出海合规Agent的价值是把这些分散的合规知识系统化、自动化，让车企合规团队效率提升3倍以上。</p><p><b>战略时机</b>：多数中国车企的出海合规能力仍以"事后救火"为主（遇到问题再找律师）。率先建立系统性出海合规体系的车企，将在新市场进入速度和合规成本上形成显著优势，这种先发优势在监管密集的欧洲市场尤为重要。</p>`},
+{num:'02',title:'五大合规支柱功能拆解',type:'steps',steps:[
+'<b>整车认证管理（市场准入的门票）</b>：不同市场的整车认证要求差异极大：欧盟需要WVTA（整车型式认证）覆盖180+技术指标；美国需要FMVSS安全标准认证+EPA排放；澳大利亚需要ADR标准；东南亚各国各有差异。认证差距分析：输入目标车型的技术规格，Agent自动对比目标市场的认证要求，输出"差距报告"（哪些指标不达标、需要什么改造、预计成本和周期）。认证项目管理：认证申请全流程跟踪（文件准备/测试机构预约/样车送检/认证机构审查/证书获取），每个节点状态实时可见，关键路径预警（影响上市时间的关键项提前预警）。认证知识库：各市场认证法规全文+历次修订记录+检测机构资质清单+已认证车型案例，支持工程师自然语言查询（"欧盟WVTA对OTA更新有什么要求"→Agent即时回答）。合规监控：目标市场法规变化自动追踪，新法规发布24小时内推送影响评估（"欧盟EURO 7标准即将实施，影响XX车型的以下指标，建议启动改造评估"）。',
+'<b>数据合规：GDPR与数据本地化</b>：GDPR是中国车企出海欧洲面临的最复杂合规挑战，违规罚款最高达全球营业额的4%（大众集团规模意味着数十亿欧元）。车联网数据GDPR合规：数据分类（哪些是"个人数据"——位置/驾驶行为/生物识别/偏好设置均属于个人数据）；数据处理合法性基础（每类数据处理须对应GDPR第6条的合法依据：同意/合同/合法利益）；数据主体权利自动化（删除权/更正权/可携权的技术实现，用户申请72小时内完成）。数据本地化合规：欧盟要求某些类型数据（尤其是涉及关键基础设施的驾驶数据）必须在欧盟境内存储和处理；部分国家有明确的数据本地化要求（印度/俄罗斯/印尼）。Agent自动监控数据流向，识别不符合本地化要求的数据跨境传输，触发整改建议。隐私影响评估（DPIA）自动化：GDPR要求对高风险数据处理活动（如大规模人脸识别）进行DPIA，Agent自动生成DPIA问卷和初稿，减少人工合规工作量80%。',
+'<b>碳足迹合规：CBAM与电池法规</b>：CBAM（欧盟碳边境调节机制）：2026年全面实施后，进入欧盟的工业品（含汽车零部件）须申报碳含量并购买CBAM证书，高碳产品实际上被征收碳关税。碳含量申报自动化：整合供应链碳足迹数据（与供应链Agent联动），按CBAM要求格式自动生成碳含量申报报告，涵盖整车及关键零部件（发动机/变速箱/电池）的碳排放数据。欧盟《电池法规》合规：2027年起要求动力电池提供"电池护照"（全生命周期数据）；2030年起要求电池中再生材料含量达到最低比例。Agent追踪合规时间表，逐项评估合规差距，输出整改路径。碳减排路径优化：基于CBAM成本预测，识别供应链中碳减排性价比最高的环节，指导供应商脱碳投入方向。',
+'<b>贸易合规：关税与原产地规则</b>：2024年以来，欧盟/美国/加拿大/土耳其等多个市场对中国电动车加征额外关税（欧盟加征17-45%反补贴税），且贸易政策变化极快。关税实时监控：主要目标市场的进口关税/反倾销税/反补贴税实时追踪，关税变化24小时内推送影响评估（"欧盟新增XX关税，影响我司XX车型的出口成本增加X元/辆，建议对价格策略进行相应调整"）。原产地规则管理：不同贸易协定（RCEP/中欧CAI/东盟+1）下的原产地认定规则不同；欧盟CBAM和FTA要求产品满足一定本地化生产比例才能享受优惠税率。Agent自动计算各车型在不同贸易协定下的原产地合规状态。海外生产战略模拟：在匈牙利/泰国/墨西哥建厂后的关税优惠测算，辅助海外生产布局决策。',
+'<b>本地化运营合规：劳动法/消费者保护/广告合规</b>：车企在目标市场设立销售和服务机构后，还需面对大量本地化运营合规要求。劳动法合规知识库：各国劳动合同要求/最低工资/工时规定/解雇程序差异显著，HR决策前自动查询当地要求。消费者保护法规：各国召回程序要求/质保法定期限/信息披露义务（如欧盟消费者权益保护指令要求的价格透明度）自动审查。广告与营销合规：汽车广告在不同市场有不同限制（德国禁止"最快"等绝对化表述，欧盟对环保声明有严格规定），市场营销材料上线前自动合规扫描。本地化监管动态：各国监管机构发布的最新要求实时推送（如某国要求新增车辆定位数据上报、或某国对新能源车推出补贴政策），确保合规团队第一时间知晓。'
+]},
+{num:'03',title:'五层技术架构',type:'arch',rows:[
+['法规知识库层','全球80+市场汽车相关法规全文库（整车认证/数据保护/碳排放/贸易政策/消费者保护，持续更新）+ 法规变更追踪引擎（官方渠道自动抓取+法律翻译AI+变更影响初步分析）+ 认证案例库（已完成认证车型的申请材料模板+检测机构评价）+ 知识图谱（法规条款间的关联和冲突关系）'],
+['合规分析层','差距分析引擎（车型技术规格×目标市场法规要求，输出合规差距报告）+ DPIA自动化（GDPR风险评估问卷生成+风险等级判断）+ 原产地计算引擎（多贸易协定的本地化比例自动计算）+ 碳足迹合规计算（CBAM申报格式数据汇总）'],
+['监控与预警层','法规变更实时监控（政府官报/监管机构新闻稿/专业法律数据库）+ 合规截止日期管理（认证有效期/申报截止日/法规实施时间表）+ 风险热力图（各目标市场×合规类别的风险评级矩阵）+ 违规风险预警（数据流向监控发现潜在GDPR违规）'],
+['协同与工作流层','认证项目管理系统（多市场认证并行推进的任务追踪）+ 合规审查工作流（营销材料/数据处理方案/新功能上线前的合规审查流程）+ 外部法律顾问协同（敏感议题自动转专业律师处理，保留沟通记录）+ 管理层合规报告自动生成（月度各市场合规健康度报告）'],
+['数据安全层','多语言文件处理（欧盟官方语言×24，法规原文解析）+ 敏感法律文件分级保密（谈判策略/律师函等最高机密处理）+ 访问权限精细化（按区域/业务线分配合规数据访问权）']
+]},
+{num:'04',title:'落地路径',type:'phases',phases:[
+{phase:'Phase 1 · 0-6个月',title:'合规知识库与差距分析',desc:'目标市场（优先欧盟/东南亚）法规知识库建立（整车认证+数据保护+碳排放核心法规）。主力出口车型的合规差距分析报告生成（每个目标市场独立报告）。法规变更监控上线（关键法规24小时变更推送）。合规截止日期管理系统上线（认证有效期/申报截止日预警）。'},
+{phase:'Phase 2 · 6-12个月',title:'数据合规与碳足迹',desc:'GDPR合规自动化工具上线（数据分类/DPIA自动化/数据主体权利响应）。CBAM碳含量申报系统上线（整合供应链碳数据，自动生成申报报告）。认证项目管理系统上线（多市场认证并行追踪）。贸易关税监控上线（主要市场关税变动实时追踪）。'},
+{phase:'Phase 3 · 12个月+',title:'全市场合规体系',desc:'扩展至北美/澳大利亚/中东等主要出口市场的法规覆盖。海外生产战略合规模拟（不同建厂地点的关税优惠和合规成本测算）。供应链碳足迹溯源与CBAM合规自动化（与供应链Agent全面联动）。ISO 37301合规管理体系认证辅助（自动化合规流程文档生成，支持外部认证审计）。'}
+]},
+{num:'05',title:'核心成功指标',type:'metrics',items:[
+{name:'新市场认证周期',target:'缩短 > 30%（vs人工管理）'},{name:'法规变更响应时间',target:'< 24小时（变更影响评估完成）'},
+{name:'CBAM申报准确率',target:'> 99%（零漏报）'},{name:'GDPR合规自查覆盖率',target:'> 95%（数据处理活动）'},
+{name:'合规团队人效提升',target:'> 3倍（人均管理市场数量）'},{name:'合规违规事件',target:'< 2件/年（重大合规事件零容忍）'}
+]},
+{num:'06',title:'关键风险与约束',type:'constraints',items:[
+{type:'warn',label:'法律责任',text:'合规Agent的分析结论是辅助工具，不构成正式法律意见。所有重大合规决策（尤其是GDPR数据保护官意见/CBAM申报/整车认证申请）必须经过具备当地执照的法律顾问审核，AI不能替代法律专业判断'},
+{type:'warn',label:'法规时效性',text:'出海合规领域法规变化极快（尤其是贸易政策和数据保护），知识库必须保持高频更新（至少每周更新），需要建立专业的法规研究团队持续维护，技术系统只是工具，内容质量才是核心'},
+{type:'warn',label:'多语言风险',text:'法规的官方语言版本具有法律效力（欧盟法规以法语/德语/英语等24种官方语言发布），AI翻译可能存在细微差异，重要条款须由人工（具备目标语言能力的法律专业人员）核实'},
+{type:'info',label:'地缘政治',text:'中国车企出海合规面临的最大不确定性是地缘政治风险——贸易政策可能在短时间内发生重大变化（如关税突然大幅提升）。合规Agent能追踪已发生的变化，但无法预测政治决策，战略层面的地缘风险管理仍须依赖人类判断'},
+{type:'ok',  label:'核心优势',text:'出海合规能力是中国车企国际化的最强护城河之一：在合规成本上领先竞品，意味着更快进入新市场、更低的监管罚款风险、更高的合作方信任度（欧洲经销商/政府采购更愿意与合规记录良好的品牌合作）'}
+]}
+],related:['compliance','supplychain','energy','adas']}
+
+
+};
+
+function renderSec(s){
+  let inner='';
+  if(s.type==='prose'){inner=`<div class="prose">${s.content}</div>`;}
+  else if(s.type==='steps'){inner='<div class="steps">'+s.steps.map((t,i)=>`<div class="step"><span class="step-num">${String(i+1).padStart(2,'0')}</span><div class="step-body">${t}</div></div>`).join('')+'</div>';}
+  else if(s.type==='arch'){inner=`<table class="arch-table"><thead><tr><th style="width:90px">层</th><th>说明</th></tr></thead><tbody>`+s.rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')+'</tbody></table>';}
+  else if(s.type==='phases'){inner='<div class="phases">'+s.phases.map(p=>`<div class="phase"><div class="phase-line"><div class="phase-dot"></div><div class="phase-connector"></div></div><div class="phase-content"><div class="phase-label">${p.phase}</div><div class="phase-title">${p.title}</div><div class="phase-desc">${p.desc}</div></div></div>`).join('')+'</div>';}
+  else if(s.type==='metrics'){inner='<div class="metrics-grid">'+s.items.map(m=>`<div class="metric-card"><div class="metric-name">${m.name}</div><div class="metric-target">${m.target}</div></div>`).join('')+'</div>';}
+  else if(s.type==='constraints'){inner='<div class="constraint-list">'+s.items.map(c=>`<div class="constraint c-${c.type}"><span class="cbadge">${c.label}</span><span class="ctext">${c.text}</span></div>`).join('')+'</div>';}
+  else if(s.type==='roi'){inner='<div class="roi-grid">'+s.items.map(m=>`<div class="roi-card"><div class="roi-label">${m.label}</div><div class="roi-value">${m.value}</div><div class="roi-note">${m.note}</div></div>`).join('')+'</div>';}
+  else if(s.type==='bench'){inner='<div class="bench-list">'+s.items.map(b=>`<div class="bench-item"><div class="bench-who">${b.who}</div><div class="bench-what">${b.what}</div></div>`).join('')+'</div>';}
+  return `<div class="section"><div class="section-header"><span class="section-num">${s.num}</span><h2>${s.title}</h2></div><div class="section-inner">${inner}</div></div>`;
+}
+
+function goToScene(key){
+  const d=S[key]; if(!d)return;
+  const color=CC[d.cat];
+  let html=`<div class="detail-eyebrow" style="color:${color}">${d.catLabel}</div><div class="detail-title"><strong>${d.title}</strong></div><div class="detail-subtitle">${d.subtitle}</div>`;
+  d.sections.forEach(s=>{html+=renderSec(s);});
+  if(d.related&&d.related.length){
+    const chips=d.related.map(r=>{const rs=S[r];return rs?`<button class="nav-chip" onclick="goToScene('${r}')">${rs.title} →</button>`:''}).join('');
+    html+=`<hr><div class="section"><div class="section-header"><span class="section-num">—</span><h2>相关场景</h2></div><div class="section-inner"><div class="related-chips">${chips}</div></div></div>`;
+  }
+  document.getElementById('detail-content').innerHTML=html;
+  document.getElementById('view-home').classList.remove('active');
+  document.getElementById('view-detail').classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+document.querySelectorAll('.card[data-scene]').forEach(c=>{c.addEventListener('click',()=>goToScene(c.dataset.scene));});
+document.getElementById('back-btn').addEventListener('click',()=>{
+  document.getElementById('view-detail').classList.remove('active');
+  document.getElementById('view-home').classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+});
+
+// Search
+const searchInput = document.getElementById('scene-search');
+const searchCount = document.getElementById('search-count');
+const allCards = document.querySelectorAll('.card[data-scene]');
+searchInput.addEventListener('input',()=>{
+  const q = searchInput.value.trim().toLowerCase();
+  if(!q){ allCards.forEach(c=>c.classList.remove('hidden')); searchCount.textContent=''; return; }
+  let visible=0;
+  allCards.forEach(c=>{
+    const text=(c.textContent||'').toLowerCase();
+    const scene=c.dataset.scene;
+    const sd=S[scene];
+    let extra='';
+    if(sd){extra=(sd.title+' '+sd.subtitle+' '+(sd.sections||[]).map(s=>s.title+' '+(s.content||'')+' '+(s.steps||[]).join(' ')).join(' ')).toLowerCase();}
+    const match=text.includes(q)||extra.includes(q);
+    c.classList.toggle('hidden',!match);
+    if(match)visible++;
+  });
+  searchCount.textContent=visible>0?`${visible} 个场景`:'无结果';
+});
+
+// Synergy toggle
+document.getElementById('synergy-toggle').addEventListener('click',()=>{
+  const body = document.getElementById('synergy-body');
+  const btn  = document.getElementById('synergy-toggle');
+  const open = body.classList.toggle('open');
+  btn.textContent = open ? '⬡ 收起 Agent 协同数据链' : '⬡ 展开 Agent 协同数据链';
+});
+
+// Map toggle
+document.getElementById('map-toggle').addEventListener('click',()=>{
+  const map=document.getElementById('rel-map');
+  const btn=document.getElementById('map-toggle');
+  const open=map.classList.toggle('open');
+  btn.textContent=open?'⊟ 收起场景关系图':'⊞ 展开场景关系图';
+  if(open) drawMap();
+});
+
+function drawMap(){
+  const canvas = document.getElementById('map-canvas');
+  const container = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const W = container.clientWidth - 2;
+  const NW = 112, NH = 34, R = 7, GAP = 44, TOP = 58, PAD = 16;
+  const maxNodes = 8;
+  const H = TOP + maxNodes * GAP + PAD + 10;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  const cols = [
+    { x: W*0.12, label:'车内体验', color:'#a78bfa', scenes:['cockpit','navigation','safety','health','testdrive','parking'] },
+    { x: W*0.37, label:'销售服务', color:'#34d399', scenes:['sales','aftersales','usedcar','leadnurture','lifecycle','autofinance'] },
+    { x: W*0.63, label:'运营管理', color:'#fb7185', scenes:['fleet','insurance','recall','compliance','pricing','supplychain','hrops','finops'] },
+    { x: W*0.88, label:'产业服务', color:'#fbbf24', scenes:['charging','rd','mobility','pr','dealer','adas','energy','overseas'] },
+  ];
+
+  // ── Build node map: key → {cx, cy, label, color, key}
+  // cx/cy = centre of node box
+  const nodes = {};
+  cols.forEach(col => {
+    col.scenes.forEach((key, i) => {
+      const title = S[key] ? S[key].title : key;
+      // strip " Agent" suffix, keep it short
+      const label = title.replace(' Agent','').replace('舆情口碑运营','舆情运营').replace('合规数据治理','合规治理');
+      nodes[key] = { cx: col.x, cy: TOP + i*GAP + NH/2, label, color: col.color, key };
+    });
+  });
+
+  // ── Edges [from, to, dashed]
+  // Only draw meaningful cross-scene connections — keep it readable
+  const edges = [
+    // 车内体验链
+    ['cockpit','navigation', false],
+    ['navigation','safety',  false],
+    ['safety','health',      false],
+    ['health','testdrive',   true ],
+    ['navigation','parking', false],
+    ['testdrive','parking',  true ],
+    // 车内 → 销售
+    ['cockpit','sales',      false],
+    ['safety','insurance',   true ],
+    ['health','insurance',   true ],
+    // 销售链
+    ['sales','aftersales',   false],
+    ['aftersales','usedcar', false],
+    ['usedcar','leadnurture',false],
+    ['leadnurture','lifecycle',false],
+    ['lifecycle','autofinance',false],
+    ['lifecycle','sales',    true ],
+    // 销售 → 运营
+    ['aftersales','fleet',   false],
+    ['aftersales','recall',  false],
+    ['autofinance','insurance',true],
+    // 运营链
+    ['fleet','insurance',    false],
+    ['insurance','recall',   false],
+    ['recall','compliance',  false],
+    ['fleet','pricing',      false],
+    ['pricing','supplychain',false],
+    ['supplychain','hrops',  true ],
+    ['hrops','finops',       true ],
+    ['finops','pricing',     true ],
+    // 运营 → 产业
+    ['fleet','rd',           false],
+    ['recall','rd',          true ],
+    ['recall','adas',        true ],
+    ['supplychain','rd',     false],
+    // 产业链
+    ['rd','adas',            false],
+    ['charging','mobility',  false],
+    ['rd','mobility',        false],
+    ['pr','dealer',          false],
+    ['dealer','leadnurture', true ],
+    ['energy','charging',    false],
+    ['overseas','adas',      true ],
+    ['overseas','energy',    true ],
+    // 跨类虚线
+    ['navigation','charging',true ],
+    ['sales','pr',           true ],
+    ['lifecycle','pr',       true ],
+    ['pr','compliance',      true ],
+    ['adas','compliance',    true ],
+    ['energy','compliance',  true ],
+    ['overseas','compliance',false],
+    ['overseas','supplychain',true],
+    ['finops','autofinance', true ],
+  ];
+
+  // ── Helper: get the point on the edge of box (cx,cy,NW,NH)
+  // that lies on the line from (cx,cy) toward (tx,ty)
+  function edgePt(cx, cy, tx, ty) {
+    const dx = tx - cx, dy = ty - cy;
+    const hw = NW/2, hh = NH/2;
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return { x: cx + hw, y: cy };
+    const scaleX = hw / Math.abs(dx);
+    const scaleY = hh / Math.abs(dy);
+    const scale  = Math.min(scaleX, scaleY);
+    return { x: cx + dx * scale, y: cy + dy * scale };
+  }
+
+  // ── Helper: draw rounded rect path (always beginPath first)
+  function rrect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.lineTo(x+w-r, y); ctx.arcTo(x+w, y,   x+w, y+r,   r);
+    ctx.lineTo(x+w, y+h-r); ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
+    ctx.lineTo(x+r, y+h); ctx.arcTo(x,   y+h, x,   y+h-r, r);
+    ctx.lineTo(x, y+r);   ctx.arcTo(x,   y,   x+r, y,     r);
+    ctx.closePath();
+  }
+
+  function hexA(hex, a) {
+    const rv=parseInt(hex.slice(1,3),16), gv=parseInt(hex.slice(3,5),16), bv=parseInt(hex.slice(5,7),16);
+    return `rgba(${rv},${gv},${bv},${a})`;
+  }
+
+  // ── 1. Draw column backgrounds
+  cols.forEach(col => {
+    const n = col.scenes.length;
+    const bx = col.x - NW/2 - 10;
+    const by = TOP - 14;
+    const bw = NW + 20;
+    const bh = (n-1)*GAP + NH + 28;
+    rrect(bx, by, bw, bh, 10);
+    ctx.fillStyle = hexA(col.color, 0.05);
+    ctx.fill();
+    ctx.strokeStyle = hexA(col.color, 0.15);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // label above box
+    ctx.fillStyle = col.color;
+    ctx.font = "600 10px 'DM Mono',monospace";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(col.label, col.x, TOP - 28);
+  });
+
+  // ── 2. Draw edges (behind nodes)
+  edges.forEach(([a, b, dashed]) => {
+    const na = nodes[a], nb = nodes[b];
+    if (!na || !nb) return;
+
+    const p1 = edgePt(na.cx, na.cy, nb.cx, nb.cy);
+    const p2 = edgePt(nb.cx, nb.cy, na.cx, na.cy);
+
+    // Control points: horizontal pull for cross-column, gentle curve for same-column
+    const sameCol = Math.abs(na.cx - nb.cx) < 1;
+    let c1x, c1y, c2x, c2y;
+    if (sameCol) {
+      // Same column: bulge to the right of the column (or left for rightmost col)
+      const isRight = na.cx > W * 0.7;
+      const bulge = isRight ? -50 : 50;
+      c1x = p1.x + bulge; c1y = p1.y;
+      c2x = p2.x + bulge; c2y = p2.y;
+    } else {
+      // Cross column: smooth horizontal S-bezier
+      const dx = p2.x - p1.x;
+      c1x = p1.x + dx*0.45; c1y = p1.y;
+      c2x = p2.x - dx*0.45; c2y = p2.y;
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash(dashed ? [5,4] : []);
+    ctx.strokeStyle = dashed ? 'rgba(255,255,255,0.13)' : 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1.2;
+    ctx.moveTo(p1.x, p1.y);
+    ctx.bezierCurveTo(c1x, c1y, c2x, c2y, p2.x, p2.y);
+    ctx.stroke();
+
+    // Arrowhead at p2, pointing along tangent from c2→p2
+    ctx.setLineDash([]);
+    const ang = Math.atan2(p2.y - c2y, p2.x - c2x);
+    const aLen = 7, aW = 0.38;
+    ctx.beginPath();
+    ctx.moveTo(p2.x, p2.y);
+    ctx.lineTo(p2.x - aLen*Math.cos(ang - aW), p2.y - aLen*Math.sin(ang - aW));
+    ctx.lineTo(p2.x - aLen*Math.cos(ang + aW), p2.y - aLen*Math.sin(ang + aW));
+    ctx.closePath();
+    ctx.fillStyle = dashed ? 'rgba(255,255,255,0.13)' : 'rgba(255,255,255,0.28)';
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // ── 3. Draw nodes (on top of edges)
+  Object.values(nodes).forEach(n => {
+    const x = n.cx - NW/2, y = n.cy - NH/2;
+    // Shadow / glow
+    ctx.save();
+    ctx.shadowColor = hexA(n.color, 0.25);
+    ctx.shadowBlur = 10;
+    rrect(x, y, NW, NH, R);
+    ctx.fillStyle = '#111118';
+    ctx.fill();
+    ctx.restore();
+    // Border
+    rrect(x, y, NW, NH, R);
+    ctx.strokeStyle = hexA(n.color, 0.75);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Label
+    ctx.fillStyle = n.color;
+    ctx.font = "500 11.5px 'DM Sans',sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.label, n.cx, n.cy);
+  });
+
+  // ── 4. Interaction
+  function hitNode(mx, my) {
+    return Object.values(nodes).find(n =>
+      mx >= n.cx-NW/2 && mx <= n.cx+NW/2 && my >= n.cy-NH/2 && my <= n.cy+NH/2
+    );
+  }
+  canvas.onclick = function(e) {
+    const r = canvas.getBoundingClientRect();
+    const hit = hitNode(e.clientX - r.left, e.clientY - r.top);
+    if (hit) goToScene(hit.key);
+  };
+  canvas.onmousemove = function(e) {
+    const r = canvas.getBoundingClientRect();
+    canvas.style.cursor = hitNode(e.clientX - r.left, e.clientY - r.top) ? 'pointer' : 'default';
+  };
+}
+</script>
+</body>
+</html>
