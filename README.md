@@ -24,10 +24,10 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/auto-agent-landscape.git
+git clone https://panglezym.github.io/Landscape-of-AI-Agent-Scenarios-in-the-Automotive-Industry/
 
 # 直接用浏览器打开（无需任何依赖）
-open 汽车行业Agent场景全景_v4.html
+
 ```
 
 > 支持 Chrome / Safari / Firefox / Edge，无需 Node.js、无需服务器、无需网络连接。
