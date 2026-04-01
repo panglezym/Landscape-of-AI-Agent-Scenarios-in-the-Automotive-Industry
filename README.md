@@ -23,10 +23,8 @@
 ## 🚀 快速开始
 
 ```bash
-# 克隆仓库
-git clone https://panglezym.github.io/Landscape-of-AI-Agent-Scenarios-in-the-Automotive-Industry/
-
 # 直接用浏览器打开（无需任何依赖）
+https://panglezym.github.io/Landscape-of-AI-Agent-Scenarios-in-the-Automotive-Industry/
 
 ```
 
