@@ -22,11 +22,9 @@
 
 ## 🚀 快速开始
 
-```bash
-# 直接用浏览器打开（无需任何依赖）
-https://panglezym.github.io/Landscape-of-AI-Agent-Scenarios-in-the-Automotive-Industry/
+**👉 [在线预览](https://panglezym.github.io/Landscape-of-AI-Agent-Scenarios-in-the-Automotive-Industry/)**
 
-```
+也可以下载 `index.html`，直接用浏览器打开（无需任何依赖）。
 
 > 支持 Chrome / Safari / Firefox / Edge，无需 Node.js、无需服务器、无需网络连接。
 
